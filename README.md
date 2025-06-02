@@ -145,7 +145,7 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 ## 👨‍💻 Autor
 
-**Danilo Silva**
+### Danilo Silva
 
 - GitHub: [@ddcsilva](https://github.com/ddcsilva)
 - LinkedIn: [Danilo Silva](https://linkedin.com/in/ddcsilva)
