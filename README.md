@@ -49,7 +49,7 @@ Angular CLI >= 18.x
 ### **2. Clone e Instale**
 ```bash
 git clone <repository-url>
-cd lista-compras
+cd vai-na-lista
 npm install
 ```
 
