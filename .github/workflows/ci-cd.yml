@@ -68,6 +68,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit
 
+      - name: Create environment file
+        run: |
+          cat > src/environments/environment.ts << 'EOF'
+          export const environment = {
+            production: true,
+            firebase: ${{ secrets.FIREBASE_CONFIG }}
+          };
+          EOF
+
       - name: Build for production
         run: npm run build:prod
 
@@ -146,3 +155,11 @@ jobs:
           echo "🌐 Production URL: https://vai-na-lista-f9551.web.app"
           echo "⏰ Build completed at: $(date)"
           echo "📦 Build size: $(du -sh dist/vai-na-lista/ | cut -f1)"
+
+      - name: Comment PR with deploy info
+        if: github.event_name == 'push'
+        run: |
+          echo "✅ **Deploy realizado com sucesso!**" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **URL de Produção:** https://vai-na-lista-f9551.web.app" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Tamanho do Build:** $(du -sh dist/vai-na-lista/ | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          echo "⏰ **Horário:** $(date)" >> $GITHUB_STEP_SUMMARY
