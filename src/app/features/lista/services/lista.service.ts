@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, computed } from '@angular/core';
 import { StorageService } from '../../../core/services/storage.service';
 import { ItemLista, NovoItemLista, EdicaoItemLista } from '../../../shared/models/item-lista.model';
 
@@ -6,6 +6,7 @@ import { ItemLista, NovoItemLista, EdicaoItemLista } from '../../../shared/model
  * Serviço responsável por gerenciar os itens da lista de compras
  * Implementa operações CRUD com persistência no localStorage
  * Usa signals para reatividade
+ * Otimizado com computed signals para melhor performance
  */
 @Injectable({
   providedIn: 'root',
@@ -16,23 +17,11 @@ export class ListaService {
   // Signal que contém todos os itens da lista
   private itens = signal<ItemLista[]>([]);
 
-  // Getter público readonly para acessar os itens
-  get itensLista() {
-    return this.itens.asReadonly();
-  }
-
-  // Computed signals para estatísticas
-  get totalItens() {
-    return this.itens().length;
-  }
-
-  get itensConcluidos() {
-    return this.itens().filter(item => item.concluido).length;
-  }
-
-  get itensRestantes() {
-    return this.totalItens - this.itensConcluidos;
-  }
+  // Computed signals para melhor performance (cached e reativo)
+  readonly itensLista = computed(() => this.itens());
+  readonly totalItens = computed(() => this.itens().length);
+  readonly itensConcluidos = computed(() => this.itens().filter(item => item.concluido).length);
+  readonly itensRestantes = computed(() => this.totalItens() - this.itensConcluidos());
 
   constructor(private storageService: StorageService) {
     this.carregarItens();

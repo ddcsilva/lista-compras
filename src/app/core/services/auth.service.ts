@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { StorageService } from './storage.service';
 import { LoggingService } from './logging.service';
@@ -18,9 +18,10 @@ export interface LoginData {
  * Gerencia o estado de autenticação do usuário usando signals
  * Persiste a sessão no localStorage
  * Integrado com sistema de logging para auditoria
+ * Otimizado com computed signals para melhor performance
  */
 @Injectable({
-  providedIn: 'root',
+  providedIn: 'root'
 })
 export class AuthService {
   private readonly STORAGE_KEY = 'vai-na-lista-usuario';
@@ -28,15 +29,9 @@ export class AuthService {
   // Signal para gerenciar o estado do usuário autenticado
   private usuarioLogado = signal<Usuario | null>(null);
 
-  // Getter público para acessar o estado do usuário
-  get usuario() {
-    return this.usuarioLogado.asReadonly();
-  }
-
-  // Computed para verificar se o usuário está autenticado
-  get isAutenticado() {
-    return this.usuarioLogado() !== null;
-  }
+  // Computed signals para melhor performance (cached e reativo)
+  readonly usuario = computed(() => this.usuarioLogado());
+  readonly isAutenticado = computed(() => this.usuarioLogado() !== null);
 
   constructor(
     private router: Router,
@@ -56,7 +51,7 @@ export class AuthService {
         this.usuarioLogado.set(usuario);
         this.loggingService.info('User session restored from storage', {
           userEmail: usuario.email,
-          userName: usuario.nome,
+          userName: usuario.nome
         });
       } else {
         this.loggingService.debug('No user session found in storage');
@@ -77,7 +72,7 @@ export class AuthService {
     try {
       this.loggingService.info('Login attempt started', {
         email: loginData.email,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
 
       // Simula uma chamada assíncrona para o backend
@@ -87,7 +82,7 @@ export class AuthService {
       if (this.validarEmail(loginData.email) && loginData.senha.length >= 3) {
         const usuario: Usuario = {
           email: loginData.email,
-          nome: this.extrairNomeDoEmail(loginData.email),
+          nome: this.extrairNomeDoEmail(loginData.email)
         };
 
         // Salva o usuário no estado e no localStorage
@@ -98,7 +93,7 @@ export class AuthService {
         this.loggingService.info('Login successful', {
           userEmail: usuario.email,
           userName: usuario.nome,
-          duration: `${duration}ms`,
+          duration: `${duration}ms`
         });
 
         // Redireciona para a página de lista
@@ -109,21 +104,17 @@ export class AuthService {
         this.loggingService.warn('Login failed - invalid credentials', {
           email: loginData.email,
           reason: !this.validarEmail(loginData.email) ? 'invalid_email' : 'weak_password',
-          duration: `${duration}ms`,
+          duration: `${duration}ms`
         });
         return false;
       }
     } catch (error) {
       const duration = Date.now() - startTime;
-      this.loggingService.error(
-        'Login error',
-        {
-          error: error,
-          email: loginData.email,
-          duration: `${duration}ms`,
-        },
-        'AuthService'
-      );
+      this.loggingService.error('Login error', {
+        error: error,
+        email: loginData.email,
+        duration: `${duration}ms`
+      }, 'AuthService');
       return false;
     }
   }
@@ -138,7 +129,7 @@ export class AuthService {
       this.loggingService.info('Logout initiated', {
         userEmail: currentUser?.email,
         userName: currentUser?.nome,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
 
       this.usuarioLogado.set(null);
@@ -165,7 +156,7 @@ export class AuthService {
 
     this.loggingService.debug('Email validation', {
       email: email,
-      isValid: isValid,
+      isValid: isValid
     });
 
     return isValid;
@@ -180,7 +171,7 @@ export class AuthService {
 
     this.loggingService.debug('Name extracted from email', {
       email: email,
-      extractedName: nomeFormatado,
+      extractedName: nomeFormatado
     });
 
     return nomeFormatado;
@@ -203,7 +194,7 @@ export class AuthService {
 
     this.loggingService.debug('Session verification', {
       isValid: isValid,
-      userEmail: usuario?.email,
+      userEmail: usuario?.email
     });
 
     return isValid;
@@ -216,7 +207,7 @@ export class AuthService {
     const usuario = this.usuarioLogado();
     return {
       email: usuario?.email,
-      nome: usuario?.nome,
+      nome: usuario?.nome
     };
   }
 }

@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AuthService } from '../../../core/services/auth.service';
@@ -10,11 +10,13 @@ import { ToastService } from '../../../core/services/toast.service';
 /**
  * Componente standalone para gerenciar a lista de compras
  * Implementa CRUD de itens com interface responsiva e tratamento robusto de erros
+ * Otimizado com computed signals e OnPush para máxima performance
  */
 @Component({
   selector: 'app-lista',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './lista.component.html',
 })
 export class ListaComponent {
@@ -27,6 +29,22 @@ export class ListaComponent {
   erroCarregamento = signal<string | null>(null);
   tentativaReconexao = signal(false);
 
+  // Computed signals para melhor performance (cached e reativo)
+  readonly usuario = computed(() => this.authService.usuario());
+  readonly itens = computed(() => this.listaService.itensLista());
+  readonly totalItens = computed(() => this.listaService.totalItens());
+  readonly itensConcluidos = computed(() => this.listaService.itensConcluidos());
+  readonly itensRestantes = computed(() => this.listaService.itensRestantes());
+
+  // Computed para filtrar itens baseado na preferência de visualização
+  readonly itensVisiveis = computed(() => {
+    const todosItens = this.itens();
+    if (this.mostrarConcluidos()) {
+      return todosItens;
+    }
+    return todosItens.filter(item => !item.concluido);
+  });
+
   constructor(
     private formBuilder: FormBuilder,
     private authService: AuthService,
@@ -38,45 +56,13 @@ export class ListaComponent {
     this.inicializarComponente();
   }
 
-  // Getters para acessar dados dos serviços
-  get usuario() {
-    return this.authService.usuario;
-  }
-
-  get itens() {
-    return this.listaService.itensLista;
-  }
-
-  get totalItens() {
-    return this.listaService.totalItens;
-  }
-
-  get itensConcluidos() {
-    return this.listaService.itensConcluidos;
-  }
-
-  get itensRestantes() {
-    return this.listaService.itensRestantes;
-  }
-
-  /**
-   * Filtra itens baseado na preferência de visualização
-   */
-  get itensVisiveis() {
-    const todosItens = this.itens();
-    if (this.mostrarConcluidos()) {
-      return todosItens;
-    }
-    return todosItens.filter(item => !item.concluido);
-  }
-
   /**
    * Inicializa o componente com tratamento de erro
    */
   private async inicializarComponente(): Promise<void> {
     try {
       this.loggingService.info('ListaComponent initialized', {
-        userId: this.usuario()?.email,
+        userId: this.usuario()?.email
       });
 
       // Aqui poderia haver uma chamada HTTP para carregar dados do servidor
@@ -119,7 +105,7 @@ export class ListaComponent {
           this.toastService.success('Item editado com sucesso!');
           this.loggingService.info('Item edited', {
             itemId: this.modoEdicao(),
-            descricao,
+            descricao
           });
           this.cancelarEdicao();
         } else {
@@ -133,7 +119,7 @@ export class ListaComponent {
         this.toastService.success('Item adicionado com sucesso!');
         this.loggingService.info('Item created', {
           itemId: itemCriado.id,
-          descricao,
+          descricao
         });
 
         this.formularioItem.reset({ quantidade: 1 });
@@ -182,7 +168,7 @@ export class ListaComponent {
           this.toastService.success('Item removido com sucesso!');
           this.loggingService.info('Item removed', {
             itemId: item.id,
-            descricao: item.descricao,
+            descricao: item.descricao
           });
         } else {
           throw new Error('Falha ao remover item');
@@ -206,7 +192,7 @@ export class ListaComponent {
         this.toastService.info(`Item ${acao}!`);
         this.loggingService.info('Item status changed', {
           itemId: item.id,
-          concluido: novoStatus,
+          concluido: novoStatus
         });
       } else {
         throw new Error('Falha ao alterar status do item');
@@ -222,7 +208,7 @@ export class ListaComponent {
   alternarVisualizacaoConcluidos(): void {
     this.mostrarConcluidos.update(valor => !valor);
     this.loggingService.debug('View filter changed', {
-      mostrarConcluidos: this.mostrarConcluidos(),
+      mostrarConcluidos: this.mostrarConcluidos()
     });
   }
 
@@ -230,7 +216,7 @@ export class ListaComponent {
    * Remove todos os itens concluídos
    */
   limparConcluidos(): void {
-    const quantidadeConcluidos = this.itensConcluidos;
+    const quantidadeConcluidos = this.itensConcluidos();
     if (quantidadeConcluidos === 0) return;
 
     const mensagem = `Deseja remover ${quantidadeConcluidos} ${quantidadeConcluidos === 1 ? 'item concluído' : 'itens concluídos'}?`;
@@ -239,7 +225,7 @@ export class ListaComponent {
         this.listaService.removerConcluidos();
         this.toastService.success(`${quantidadeConcluidos} itens removidos!`);
         this.loggingService.info('Completed items cleared', {
-          quantidade: quantidadeConcluidos,
+          quantidade: quantidadeConcluidos
         });
       } catch (error) {
         this.handleComponentError(error, 'limpar itens concluídos');
@@ -251,7 +237,7 @@ export class ListaComponent {
    * Limpa toda a lista
    */
   limparTodaLista(): void {
-    const total = this.totalItens;
+    const total = this.totalItens();
     if (total === 0) return;
 
     const mensagem = `Deseja realmente remover todos os ${total} itens da lista?`;
@@ -260,7 +246,7 @@ export class ListaComponent {
         this.listaService.limparLista();
         this.toastService.success('Lista limpa com sucesso!');
         this.loggingService.info('Entire list cleared', {
-          totalItens: total,
+          totalItens: total
         });
       } catch (error) {
         this.handleComponentError(error, 'limpar a lista');
@@ -305,10 +291,10 @@ export class ListaComponent {
   private handleComponentError(error: any, action: string): void {
     const errorMessage = `Não foi possível ${action}`;
 
-    this.loggingService.logError(error, 'ListaComponent', {
+    this.loggingService.logError(error as Error, 'ListaComponent', {
       action,
       userId: this.usuario()?.email,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     // Define erro de carregamento para exibir fallback UI

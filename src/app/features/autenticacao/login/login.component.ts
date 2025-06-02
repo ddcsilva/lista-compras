@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -11,11 +11,13 @@ import { ToastService } from '../../../core/services/toast.service';
  * Utiliza formulário reativo com validações
  * Implementa autenticação fake
  * Integrado com sistema de logging e notificações
+ * Otimizado com OnPush para melhor performance
  */
 @Component({
   selector: 'app-login',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.component.html',
 })
 export class LoginComponent {

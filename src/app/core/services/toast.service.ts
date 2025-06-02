@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, computed } from '@angular/core';
 
 export enum ToastType {
   SUCCESS = 'success',
@@ -21,6 +21,7 @@ export interface Toast {
  * Serviço de notificações toast
  * Gerencia exibição de mensagens temporárias ao usuário
  * Integrado com sistema de logging para rastreabilidade
+ * Otimizado com computed signals para melhor performance
  */
 @Injectable({
   providedIn: 'root',
@@ -32,10 +33,8 @@ export class ToastService {
   // Signal para gerenciar lista de toasts ativos
   private toastsSignal = signal<Toast[]>([]);
 
-  // Getter público readonly para acessar toasts
-  get toasts() {
-    return this.toastsSignal.asReadonly();
-  }
+  // Computed signal para acesso público readonly (cached e reativo)
+  readonly toasts = computed(() => this.toastsSignal());
 
   /**
    * Exibe toast de sucesso
@@ -196,9 +195,9 @@ export class ToastService {
   /**
    * Obtém estatísticas dos toasts
    */
-  getStats(): { active: number; byType: Record<string, number> } {
+  getStats(): { active: number; byLevel: Record<string, number> } {
     const toasts = this.toastsSignal();
-    const byType = {
+    const byLevel = {
       success: 0,
       error: 0,
       warning: 0,
@@ -206,14 +205,14 @@ export class ToastService {
     };
 
     toasts.forEach(toast => {
-      if (byType[toast.type] !== undefined) {
-        byType[toast.type]++;
+      if (byLevel[toast.type] !== undefined) {
+        byLevel[toast.type]++;
       }
     });
 
     return {
       active: toasts.length,
-      byType,
+      byLevel,
     };
   }
 }

@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ToastService, Toast, ToastType } from '../../../core/services/toast.service';
 
@@ -6,11 +6,13 @@ import { ToastService, Toast, ToastType } from '../../../core/services/toast.ser
  * Componente para exibir notificações toast
  * Renderiza automaticamente toasts gerenciados pelo ToastService
  * Design responsivo com animações suaves
+ * Otimizado com OnPush para melhor performance
  */
 @Component({
   selector: 'app-toast-container',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
       @for (toast of toastService.toasts(); track toast.id) {
