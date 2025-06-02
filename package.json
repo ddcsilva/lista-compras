@@ -19,11 +19,13 @@
     "deploy": "npm run build:prod && firebase deploy",
     "deploy:preview": "npm run build:prod && firebase hosting:channel:deploy preview",
     "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:check": "node scripts/deploy-check.js",
     "firebase:login": "firebase login",
     "firebase:serve": "npm run build:prod && firebase serve",
     "firebase:emulators": "firebase emulators:start",
     "ci": "npm run code:check && npm run test:ci && npm run build:prod",
     "prepare": "npm run code:check",
+    "setup:deploy": "npm run deploy:check && echo '\\Se tudo estiver OK, configure os secrets no GitHub e faça o push!'",
     "check-setup": "node scripts/check-setup.js",
     "commit-deploy": "bash scripts/commit-deploy-setup.sh"
   },
