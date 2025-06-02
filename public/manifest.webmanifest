@@ -1,0 +1,13 @@
+{
+  "name": "Vai na Lista",
+  "short_name": "Vai na Lista",
+  "description": "Sua lista de compras inteligente",
+  "theme_color": "#0ea5e9",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "orientation": "portrait",
+  "categories": ["productivity", "shopping"],
+  "lang": "pt-BR"
+}
