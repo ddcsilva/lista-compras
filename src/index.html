@@ -4,12 +4,37 @@
     <meta charset="utf-8" />
     <title>Vai na Lista - Sua lista de compras inteligente</title>
     <base href="/" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="Aplicativo para gerenciar sua lista de compras de forma simples e eficiente" />
+    <meta name="keywords" content="lista de compras, mercado, supermercado, organização, compras" />
+    <meta name="author" content="Vai na Lista" />
+
+    <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#0ea5e9" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Vai na Lista" />
+    <meta name="msapplication-TileColor" content="#0ea5e9" />
+    <meta name="msapplication-tap-highlight" content="no" />
+
+    <!-- Icons -->
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+
+    <!-- Preconnect to improve performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://identitytoolkit.googleapis.com" />
+    <link rel="preconnect" href="https://firestore.googleapis.com" />
   </head>
   <body>
     <app-root></app-root>
+    <noscript>
+      <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif">
+        <h1>JavaScript Necessário</h1>
+        <p>Por favor, habilite o JavaScript para usar o aplicativo Vai na Lista.</p>
+      </div>
+    </noscript>
   </body>
 </html>

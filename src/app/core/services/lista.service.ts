@@ -113,16 +113,17 @@ export class ListaService implements OnDestroy {
         email: usuario?.email,
       });
 
+      // Para todas as sincronizações imediatamente para evitar erros de permissão
+      this.pararTodasSincronizacoes();
+
       // Atualiza usuário atual
       this.currentUserId = novoUsuarioId;
 
       if (usuario) {
-        // Para sincronizações anteriores
-        this.pararTodasSincronizacoes();
         // Inicia sincronização das listas do usuário
         this.iniciarSincronizacaoListasUsuario(usuario.uid);
       } else {
-        this.pararTodasSincronizacoes();
+        // Limpa estado quando usuário sai
         this.limparEstado();
       }
     });
@@ -798,6 +799,16 @@ export class ListaService implements OnDestroy {
    * Trata erros de sincronização
    */
   private tratarErroSincronizacao(error: any): void {
+    // Não exibe erros se usuário não está autenticado (durante logout)
+    const usuario = this.authService.usuario();
+    if (!usuario) {
+      this.loggingService.debug('Ignoring sync error - user not authenticated', {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
     // Erro específico de permissões
     if (error.code === 'permission-denied') {
       this.toastService.error(
