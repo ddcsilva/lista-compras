@@ -3,11 +3,14 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
+import { LoggingService } from '../../../core/services/logging.service';
+import { ToastService } from '../../../core/services/toast.service';
 
 /**
  * Componente standalone para tela de login
  * Utiliza formulário reativo com validações
  * Implementa autenticação fake
+ * Integrado com sistema de logging e notificações
  */
 @Component({
   selector: 'app-login',
@@ -26,9 +29,12 @@ export class LoginComponent {
   constructor(
     private formBuilder: FormBuilder,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private loggingService: LoggingService,
+    private toastService: ToastService
   ) {
     this.loginForm = this.criarFormulario();
+    this.loggingService.info('LoginComponent initialized');
   }
 
   /**
@@ -46,6 +52,9 @@ export class LoginComponent {
    */
   alternarVisibilidadeSenha(): void {
     this.mostrarSenha.update(valor => !valor);
+    this.loggingService.debug('Password visibility toggled', {
+      visible: this.mostrarSenha(),
+    });
   }
 
   /**
@@ -106,6 +115,7 @@ export class LoginComponent {
   async onSubmit(): Promise<void> {
     if (this.loginForm.invalid) {
       this.marcarCamposComoTocados();
+      this.loggingService.warn('Login form submitted with validation errors');
       return;
     }
 
@@ -114,14 +124,40 @@ export class LoginComponent {
 
     try {
       const { email, senha } = this.loginForm.value;
+
+      this.loggingService.info('Login form submitted', {
+        email: email,
+        formValid: this.loginForm.valid,
+      });
+
       const sucesso = await this.authService.login({ email, senha });
 
       if (!sucesso) {
-        this.erroLogin.set('Email ou senha inválidos. Tente novamente.');
+        const errorMessage = 'Email ou senha inválidos. Tente novamente.';
+        this.erroLogin.set(errorMessage);
+
+        this.toastService.error('Credenciais inválidas. Verifique seus dados e tente novamente.', 'Erro de Login');
+
+        this.loggingService.warn('Login failed in component', {
+          email: email,
+          reason: 'invalid_credentials',
+        });
+      } else {
+        this.toastService.success('Login realizado com sucesso!', 'Bem-vindo');
       }
     } catch (error) {
-      console.error('Erro durante login:', error);
-      this.erroLogin.set('Ocorreu um erro inesperado. Tente novamente.');
+      const errorMessage = 'Ocorreu um erro inesperado. Tente novamente.';
+      this.erroLogin.set(errorMessage);
+
+      this.loggingService.logError(error as Error, 'LoginComponent', {
+        action: 'login_submission',
+        formData: {
+          email: this.loginForm.value.email,
+          hasPassword: !!this.loginForm.value.senha,
+        },
+      });
+
+      this.toastService.error('Erro inesperado durante o login. Tente novamente.', 'Erro do Sistema');
     } finally {
       this.isCarregando.set(false);
     }
@@ -144,5 +180,29 @@ export class LoginComponent {
       email: 'usuario@exemplo.com',
       senha: '123456',
     });
+
+    this.toastService.info('Formulário preenchido com dados de exemplo');
+    this.loggingService.debug('Form filled with example data');
+  }
+
+  /**
+   * Demonstra o sistema de notificações (para desenvolvimento)
+   */
+  testarNotificacoes(): void {
+    this.toastService.success('Teste de notificação de sucesso!');
+
+    setTimeout(() => {
+      this.toastService.warning('Teste de notificação de aviso!');
+    }, 1000);
+
+    setTimeout(() => {
+      this.toastService.error('Teste de notificação de erro!');
+    }, 2000);
+
+    setTimeout(() => {
+      this.toastService.info('Teste de notificação informativa!');
+    }, 3000);
+
+    this.loggingService.debug('Notification system test triggered');
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { StorageService } from './storage.service';
+import { LoggingService } from './logging.service';
 
 export interface Usuario {
   email: string;
@@ -16,6 +17,7 @@ export interface LoginData {
  * Serviço de autenticação fake
  * Gerencia o estado de autenticação do usuário usando signals
  * Persiste a sessão no localStorage
+ * Integrado com sistema de logging para auditoria
  */
 @Injectable({
   providedIn: 'root',
@@ -38,7 +40,8 @@ export class AuthService {
 
   constructor(
     private router: Router,
-    private storageService: StorageService
+    private storageService: StorageService,
+    private loggingService: LoggingService
   ) {
     this.carregarUsuarioDoStorage();
   }
@@ -47,9 +50,19 @@ export class AuthService {
    * Carrega o usuário salvo no localStorage na inicialização
    */
   private carregarUsuarioDoStorage(): void {
-    const usuario = this.storageService.getItem<Usuario>(this.STORAGE_KEY);
-    if (usuario) {
-      this.usuarioLogado.set(usuario);
+    try {
+      const usuario = this.storageService.getItem<Usuario>(this.STORAGE_KEY);
+      if (usuario) {
+        this.usuarioLogado.set(usuario);
+        this.loggingService.info('User session restored from storage', {
+          userEmail: usuario.email,
+          userName: usuario.nome,
+        });
+      } else {
+        this.loggingService.debug('No user session found in storage');
+      }
+    } catch (error) {
+      this.loggingService.error('Failed to load user from storage', error);
     }
   }
 
@@ -59,35 +72,88 @@ export class AuthService {
    * @returns Promise<boolean> - true se login foi bem-sucedido
    */
   async login(loginData: LoginData): Promise<boolean> {
-    // Simula uma chamada assíncrona para o backend
-    await this.simularDelay(800);
+    const startTime = Date.now();
 
-    // Validação básica - aceita qualquer email válido
-    if (this.validarEmail(loginData.email) && loginData.senha.length >= 3) {
-      const usuario: Usuario = {
+    try {
+      this.loggingService.info('Login attempt started', {
         email: loginData.email,
-        nome: this.extrairNomeDoEmail(loginData.email),
-      };
+        timestamp: new Date().toISOString(),
+      });
 
-      // Salva o usuário no estado e no localStorage
-      this.usuarioLogado.set(usuario);
-      this.storageService.setItem(this.STORAGE_KEY, usuario);
+      // Simula uma chamada assíncrona para o backend
+      await this.simularDelay(800);
 
-      // Redireciona para a página de lista
-      await this.router.navigate(['/lista']);
-      return true;
+      // Validação básica - aceita qualquer email válido
+      if (this.validarEmail(loginData.email) && loginData.senha.length >= 3) {
+        const usuario: Usuario = {
+          email: loginData.email,
+          nome: this.extrairNomeDoEmail(loginData.email),
+        };
+
+        // Salva o usuário no estado e no localStorage
+        this.usuarioLogado.set(usuario);
+        this.storageService.setItem(this.STORAGE_KEY, usuario);
+
+        const duration = Date.now() - startTime;
+        this.loggingService.info('Login successful', {
+          userEmail: usuario.email,
+          userName: usuario.nome,
+          duration: `${duration}ms`,
+        });
+
+        // Redireciona para a página de lista
+        await this.router.navigate(['/lista']);
+        return true;
+      } else {
+        const duration = Date.now() - startTime;
+        this.loggingService.warn('Login failed - invalid credentials', {
+          email: loginData.email,
+          reason: !this.validarEmail(loginData.email) ? 'invalid_email' : 'weak_password',
+          duration: `${duration}ms`,
+        });
+        return false;
+      }
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.loggingService.error(
+        'Login error',
+        {
+          error: error,
+          email: loginData.email,
+          duration: `${duration}ms`,
+        },
+        'AuthService'
+      );
+      return false;
     }
-
-    return false;
   }
 
   /**
    * Realiza o logout
    */
   async logout(): Promise<void> {
-    this.usuarioLogado.set(null);
-    this.storageService.removeItem(this.STORAGE_KEY);
-    await this.router.navigate(['/login']);
+    try {
+      const currentUser = this.usuarioLogado();
+
+      this.loggingService.info('Logout initiated', {
+        userEmail: currentUser?.email,
+        userName: currentUser?.nome,
+        timestamp: new Date().toISOString(),
+      });
+
+      this.usuarioLogado.set(null);
+      this.storageService.removeItem(this.STORAGE_KEY);
+
+      this.loggingService.info('Logout completed successfully');
+
+      await this.router.navigate(['/login']);
+    } catch (error) {
+      this.loggingService.error('Logout error', error, 'AuthService');
+      // Mesmo com erro, força o logout
+      this.usuarioLogado.set(null);
+      this.storageService.removeItem(this.STORAGE_KEY);
+      await this.router.navigate(['/login']);
+    }
   }
 
   /**
@@ -95,7 +161,14 @@ export class AuthService {
    */
   private validarEmail(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    const isValid = emailRegex.test(email);
+
+    this.loggingService.debug('Email validation', {
+      email: email,
+      isValid: isValid,
+    });
+
+    return isValid;
   }
 
   /**
@@ -103,13 +176,47 @@ export class AuthService {
    */
   private extrairNomeDoEmail(email: string): string {
     const nome = email.split('@')[0];
-    return nome.charAt(0).toUpperCase() + nome.slice(1);
+    const nomeFormatado = nome.charAt(0).toUpperCase() + nome.slice(1);
+
+    this.loggingService.debug('Name extracted from email', {
+      email: email,
+      extractedName: nomeFormatado,
+    });
+
+    return nomeFormatado;
   }
 
   /**
    * Simula delay de rede
    */
   private simularDelay(ms: number): Promise<void> {
+    this.loggingService.debug('Simulating network delay', { delayMs: ms });
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Verifica se a sessão atual é válida
+   */
+  verificarSessao(): boolean {
+    const usuario = this.usuarioLogado();
+    const isValid = usuario !== null;
+
+    this.loggingService.debug('Session verification', {
+      isValid: isValid,
+      userEmail: usuario?.email,
+    });
+
+    return isValid;
+  }
+
+  /**
+   * Obtém informações do usuário atual para logging
+   */
+  obterContextoUsuario(): { email?: string; nome?: string } {
+    const usuario = this.usuarioLogado();
+    return {
+      email: usuario?.email,
+      nome: usuario?.nome,
+    };
   }
 }

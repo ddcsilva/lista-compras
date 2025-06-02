@@ -4,10 +4,12 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { AuthService } from '../../../core/services/auth.service';
 import { ListaService } from '../services/lista.service';
 import { ItemLista, NovoItemLista } from '../../../shared/models/item-lista.model';
+import { LoggingService } from '../../../core/services/logging.service';
+import { ToastService } from '../../../core/services/toast.service';
 
 /**
  * Componente standalone para gerenciar a lista de compras
- * Implementa CRUD de itens com interface responsiva
+ * Implementa CRUD de itens com interface responsiva e tratamento robusto de erros
  */
 @Component({
   selector: 'app-lista',
@@ -22,13 +24,18 @@ export class ListaComponent {
   modoEdicao = signal<string | null>(null);
   isCarregando = signal(false);
   mostrarConcluidos = signal(true);
+  erroCarregamento = signal<string | null>(null);
+  tentativaReconexao = signal(false);
 
   constructor(
     private formBuilder: FormBuilder,
     private authService: AuthService,
-    private listaService: ListaService
+    private listaService: ListaService,
+    private loggingService: LoggingService,
+    private toastService: ToastService
   ) {
     this.formularioItem = this.criarFormulario();
+    this.inicializarComponente();
   }
 
   // Getters para acessar dados dos serviços
@@ -64,6 +71,24 @@ export class ListaComponent {
   }
 
   /**
+   * Inicializa o componente com tratamento de erro
+   */
+  private async inicializarComponente(): Promise<void> {
+    try {
+      this.loggingService.info('ListaComponent initialized', {
+        userId: this.usuario()?.email,
+      });
+
+      // Aqui poderia haver uma chamada HTTP para carregar dados do servidor
+      // Por enquanto, os dados vêm do localStorage via ListaService
+
+      this.erroCarregamento.set(null);
+    } catch (error) {
+      this.handleComponentError(error, 'inicializar o componente');
+    }
+  }
+
+  /**
    * Cria o formulário para adicionar/editar itens
    */
   private criarFormulario(): FormGroup {
@@ -89,16 +114,32 @@ export class ListaComponent {
 
       if (this.modoEdicao()) {
         // Modo edição
-        this.listaService.editarItem(this.modoEdicao()!, { descricao, quantidade });
-        this.cancelarEdicao();
+        const sucesso = this.listaService.editarItem(this.modoEdicao()!, { descricao, quantidade });
+        if (sucesso) {
+          this.toastService.success('Item editado com sucesso!');
+          this.loggingService.info('Item edited', {
+            itemId: this.modoEdicao(),
+            descricao,
+          });
+          this.cancelarEdicao();
+        } else {
+          throw new Error('Falha ao editar item');
+        }
       } else {
         // Modo criação
         const novoItem: NovoItemLista = { descricao, quantidade };
-        this.listaService.adicionarItem(novoItem);
+        const itemCriado = this.listaService.adicionarItem(novoItem);
+
+        this.toastService.success('Item adicionado com sucesso!');
+        this.loggingService.info('Item created', {
+          itemId: itemCriado.id,
+          descricao,
+        });
+
         this.formularioItem.reset({ quantidade: 1 });
       }
     } catch (error) {
-      console.error('Erro ao salvar item:', error);
+      this.handleComponentError(error, 'salvar o item');
     } finally {
       this.isCarregando.set(false);
     }
@@ -108,11 +149,17 @@ export class ListaComponent {
    * Inicia o modo de edição para um item
    */
   editarItem(item: ItemLista): void {
-    this.modoEdicao.set(item.id);
-    this.formularioItem.patchValue({
-      descricao: item.descricao,
-      quantidade: item.quantidade,
-    });
+    try {
+      this.modoEdicao.set(item.id);
+      this.formularioItem.patchValue({
+        descricao: item.descricao,
+        quantidade: item.quantidade,
+      });
+
+      this.loggingService.debug('Edit mode activated', { itemId: item.id });
+    } catch (error) {
+      this.handleComponentError(error, 'editar o item');
+    }
   }
 
   /**
@@ -121,6 +168,7 @@ export class ListaComponent {
   cancelarEdicao(): void {
     this.modoEdicao.set(null);
     this.formularioItem.reset({ quantidade: 1 });
+    this.loggingService.debug('Edit mode cancelled');
   }
 
   /**
@@ -128,7 +176,20 @@ export class ListaComponent {
    */
   removerItem(item: ItemLista): void {
     if (confirm(`Deseja realmente remover "${item.descricao}"?`)) {
-      this.listaService.removerItem(item.id);
+      try {
+        const sucesso = this.listaService.removerItem(item.id);
+        if (sucesso) {
+          this.toastService.success('Item removido com sucesso!');
+          this.loggingService.info('Item removed', {
+            itemId: item.id,
+            descricao: item.descricao,
+          });
+        } else {
+          throw new Error('Falha ao remover item');
+        }
+      } catch (error) {
+        this.handleComponentError(error, 'remover o item');
+      }
     }
   }
 
@@ -136,7 +197,23 @@ export class ListaComponent {
    * Marca/desmarca item como concluído
    */
   alterarStatusItem(item: ItemLista): void {
-    this.listaService.marcarConcluido(item.id, !item.concluido);
+    try {
+      const novoStatus = !item.concluido;
+      const sucesso = this.listaService.marcarConcluido(item.id, novoStatus);
+
+      if (sucesso) {
+        const acao = novoStatus ? 'concluído' : 'reaberto';
+        this.toastService.info(`Item ${acao}!`);
+        this.loggingService.info('Item status changed', {
+          itemId: item.id,
+          concluido: novoStatus,
+        });
+      } else {
+        throw new Error('Falha ao alterar status do item');
+      }
+    } catch (error) {
+      this.handleComponentError(error, 'alterar o status do item');
+    }
   }
 
   /**
@@ -144,6 +221,9 @@ export class ListaComponent {
    */
   alternarVisualizacaoConcluidos(): void {
     this.mostrarConcluidos.update(valor => !valor);
+    this.loggingService.debug('View filter changed', {
+      mostrarConcluidos: this.mostrarConcluidos(),
+    });
   }
 
   /**
@@ -155,7 +235,15 @@ export class ListaComponent {
 
     const mensagem = `Deseja remover ${quantidadeConcluidos} ${quantidadeConcluidos === 1 ? 'item concluído' : 'itens concluídos'}?`;
     if (confirm(mensagem)) {
-      this.listaService.removerConcluidos();
+      try {
+        this.listaService.removerConcluidos();
+        this.toastService.success(`${quantidadeConcluidos} itens removidos!`);
+        this.loggingService.info('Completed items cleared', {
+          quantidade: quantidadeConcluidos,
+        });
+      } catch (error) {
+        this.handleComponentError(error, 'limpar itens concluídos');
+      }
     }
   }
 
@@ -168,7 +256,15 @@ export class ListaComponent {
 
     const mensagem = `Deseja realmente remover todos os ${total} itens da lista?`;
     if (confirm(mensagem)) {
-      this.listaService.limparLista();
+      try {
+        this.listaService.limparLista();
+        this.toastService.success('Lista limpa com sucesso!');
+        this.loggingService.info('Entire list cleared', {
+          totalItens: total,
+        });
+      } catch (error) {
+        this.handleComponentError(error, 'limpar a lista');
+      }
     }
   }
 
@@ -177,7 +273,52 @@ export class ListaComponent {
    */
   async logout(): Promise<void> {
     if (confirm('Deseja realmente sair?')) {
-      await this.authService.logout();
+      try {
+        this.loggingService.info('User logout initiated');
+        await this.authService.logout();
+      } catch (error) {
+        this.handleComponentError(error, 'fazer logout');
+      }
+    }
+  }
+
+  /**
+   * Tenta recarregar os dados em caso de erro
+   */
+  async tentarNovamente(): Promise<void> {
+    this.tentativaReconexao.set(true);
+
+    try {
+      this.loggingService.info('Retry attempt initiated');
+      await this.inicializarComponente();
+      this.toastService.success('Dados recarregados com sucesso!');
+    } catch (error) {
+      this.handleComponentError(error, 'recarregar os dados');
+    } finally {
+      this.tentativaReconexao.set(false);
+    }
+  }
+
+  /**
+   * Tratamento centralizado de erros do componente
+   */
+  private handleComponentError(error: any, action: string): void {
+    const errorMessage = `Não foi possível ${action}`;
+
+    this.loggingService.logError(error, 'ListaComponent', {
+      action,
+      userId: this.usuario()?.email,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Define erro de carregamento para exibir fallback UI
+    if (action.includes('carregar') || action.includes('inicializar')) {
+      this.erroCarregamento.set(errorMessage);
+    }
+
+    // Exibe toast apenas se não for erro de carregamento inicial
+    if (!action.includes('inicializar')) {
+      this.toastService.showGenericError(action);
     }
   }
 
