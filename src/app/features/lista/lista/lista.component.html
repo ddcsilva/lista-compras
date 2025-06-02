@@ -1,30 +1,20 @@
 <!-- Estado de erro de carregamento -->
 @if (erroCarregamento()) {
   <div class="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-    <div class="max-w-md w-full">
-      <div class="bg-white rounded-lg shadow-sm border border-red-200 p-8 text-center">
-        <div class="mb-4">
-          <svg class="mx-auto h-16 w-16 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            ></path>
-          </svg>
+    <div class="max-w-md w-full text-center">
+      <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div class="text-red-400 mb-4">
+          <span class="text-5xl">⚠️</span>
         </div>
-
-        <h3 class="text-lg font-medium text-gray-900 mb-2">Ops! Algo deu errado</h3>
-
-        <p class="text-gray-600 mb-6">{{ erroCarregamento() }}. Verifique sua conexão e tente novamente.</p>
-
-        <div class="space-y-3">
-          <button
-            (click)="tentarNovamente()"
-            [disabled]="tentativaReconexao()"
-            class="w-full flex justify-center items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            @if (tentativaReconexao()) {
+        <h2 class="text-lg font-semibold text-red-900 mb-2">Ops! Algo deu errado</h2>
+        <p class="text-red-700 mb-4">{{ erroCarregamento() }}</p>
+        <button
+          (click)="tentarNovamente()"
+          [disabled]="tentativaReconexao()"
+          class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50"
+        >
+          @if (tentativaReconexao()) {
+            <span class="flex items-center justify-center">
               <svg class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path
@@ -34,47 +24,67 @@
                 ></path>
               </svg>
               Tentando novamente...
-            } @else {
-              <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                ></path>
-              </svg>
-              Tentar Novamente
-            }
-          </button>
-
-          <button
-            (click)="logout()"
-            class="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-          >
-            Voltar ao Login
-          </button>
-        </div>
+            </span>
+          } @else {
+            Tentar Novamente
+          }
+        </button>
       </div>
     </div>
   </div>
 } @else {
-  <!-- Interface normal -->
+  <!-- Interface principal -->
   <div class="min-h-screen bg-gray-50">
     <!-- Header -->
-    <header class="bg-white shadow-sm border-b border-gray-200">
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-16">
           <!-- Logo e título -->
           <div class="flex items-center">
-            <h1 class="text-2xl font-bold text-primary-600">Vai na Lista</h1>
+            <h1 class="text-xl font-bold text-gray-900">Vai na Lista</h1>
+            <span class="ml-2 text-sm text-gray-500">{{ usuario()?.nome }}</span>
           </div>
 
-          <!-- Info do usuário e logout -->
+          <!-- Status e ações -->
           <div class="flex items-center space-x-4">
-            <span class="text-sm text-gray-600">
-              Olá, <strong>{{ usuario()?.nome }}</strong>
-            </span>
-            <button (click)="logout()" class="text-sm text-gray-500 hover:text-red-600 transition-colors">Sair</button>
+            <!-- Indicador de status online/offline -->
+            @if (!isOnline()) {
+              <div class="flex items-center text-amber-600">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                  ></path>
+                </svg>
+                <span class="text-xs">Offline</span>
+              </div>
+            } @else {
+              <div class="flex items-center text-green-600">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  ></path>
+                </svg>
+                <span class="text-xs">Online</span>
+              </div>
+            }
+
+            <!-- Botão de logout -->
+            <button (click)="logout()" class="text-gray-500 hover:text-gray-700 transition-colors" title="Sair">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                ></path>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -278,33 +288,35 @@
                     />
 
                     <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-3">
-                        <span class="text-gray-900 font-medium" [class.line-through]="item.concluido">
+                      <div class="flex items-center">
+                        <h3
+                          class="text-sm font-medium text-gray-900 truncate"
+                          [class.line-through]="item.concluido"
+                          [class.text-gray-500]="item.concluido"
+                        >
                           {{ item.descricao }}
-                        </span>
-
+                        </h3>
                         <span
-                          class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
+                          class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
                         >
                           {{ item.quantidade }}x
                         </span>
                       </div>
-
                       <p class="text-xs text-gray-500 mt-1">
-                        Atualizado em {{ item.dataAtualizacao | date: 'dd/MM/yyyy HH:mm' }}
+                        Adicionado em {{ item.criadoEm | date: 'dd/MM/yyyy HH:mm' }}
                       </p>
                     </div>
                   </div>
 
-                  <!-- Ações do item -->
-                  <div class="flex items-center gap-2 ml-4">
-                    @if (!item.concluido && modoEdicao() !== item.id) {
+                  <!-- Botões de ação -->
+                  <div class="flex items-center space-x-2 ml-4">
+                    @if (!item.concluido) {
                       <button
                         (click)="editarItem(item)"
-                        class="p-2 text-gray-400 hover:text-primary-600 transition-colors"
+                        class="p-1.5 text-gray-400 hover:text-primary-600 transition-colors"
                         title="Editar item"
                       >
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
                             stroke-linecap="round"
                             stroke-linejoin="round"
@@ -317,10 +329,10 @@
 
                     <button
                       (click)="removerItem(item)"
-                      class="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                      class="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
                       title="Remover item"
                     >
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
                           stroke-linecap="round"
                           stroke-linejoin="round"

@@ -131,11 +131,26 @@ export class LoggingService {
   }
 
   /**
-   * Exporta logs para análise
+   * Exporta logs como arquivo JSON
    */
-  exportLogs(): string {
-    const logs = this.getLogs();
-    return JSON.stringify(logs, null, 2);
+  exportLogs(): void {
+    try {
+      const logs = this.getLogs();
+      const dataStr = JSON.stringify(logs, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `vai-na-lista-logs-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+
+      URL.revokeObjectURL(url);
+
+      this.info('Logs exported successfully');
+    } catch (error: unknown) {
+      this.error('Failed to export logs', { error: (error as Error).message });
+    }
   }
 
   /**
@@ -210,6 +225,7 @@ export class LoggingService {
   /**
    * Placeholder para integração futura com serviços externos
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private sendToExternalService(logEntry: LogEntry): void {
     // TODO: Implementar integração com Sentry, Firebase, etc.
     // Exemplo:

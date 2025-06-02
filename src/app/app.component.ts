@@ -1,4 +1,5 @@
-import { Component, computed } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { ToastComponent } from './shared/components/toast/toast.component';
 import { LoadingComponent } from './shared/components/loading/loading.component';
@@ -12,19 +13,10 @@ import { AuthService } from './core/services/auth.service';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, ToastComponent, LoadingComponent],
-  template: `
-    @if (authService.isCarregando()) {
-      <app-loading
-        message="Inicializando aplicação..."
-        subMessage="Verificando autenticação"
-      />
-    } @else {
-      <router-outlet></router-outlet>
-    }
-
-    <app-toast-container></app-toast-container>
-  `,
+  imports: [CommonModule, RouterOutlet, ToastComponent, LoadingComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.css',
 })
 export class AppComponent {
   title = 'Vai na Lista';

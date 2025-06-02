@@ -8,12 +8,14 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
-  User
+  User,
+  AuthError,
 } from 'firebase/auth';
 import { auth } from '../config/firebase.config';
 import { StorageService } from './storage.service';
 import { LoggingService } from './logging.service';
 import { ToastService } from './toast.service';
+import { Observable } from 'rxjs';
 
 export interface Usuario {
   uid: string;
@@ -41,7 +43,7 @@ export interface CadastroData {
  * Otimizado com computed signals para melhor performance
  */
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class AuthService {
   private readonly STORAGE_KEY = 'vai-na-lista-usuario';
@@ -56,6 +58,32 @@ export class AuthService {
   readonly isAutenticado = computed(() => this.usuarioLogado() !== null);
   readonly isCarregando = computed(() => this.carregandoAuth());
 
+  /**
+   * Observable que emite o usuário atual
+   * Usa o signal interno para evitar duplo listener
+   */
+  readonly usuario$ = new Observable<Usuario | null>(subscriber => {
+    let lastValue = this.usuarioLogado();
+
+    // Emite valor inicial
+    subscriber.next(lastValue);
+
+    // Cria um interval muito leve para verificar mudanças no signal
+    // Isso é mais eficiente que duplicar onAuthStateChanged
+    const intervalId = setInterval(() => {
+      const currentValue = this.usuarioLogado();
+      if (currentValue !== lastValue) {
+        lastValue = currentValue;
+        subscriber.next(currentValue);
+      }
+    }, 50); // Check a cada 50ms
+
+    // Cleanup
+    return () => {
+      clearInterval(intervalId);
+    };
+  });
+
   constructor(
     private router: Router,
     private storageService: StorageService,
@@ -69,7 +97,7 @@ export class AuthService {
    * Inicializa o listener de autenticação do Firebase
    */
   private inicializarAuth(): void {
-    onAuthStateChanged(auth, (firebaseUser) => {
+    onAuthStateChanged(auth, firebaseUser => {
       this.carregandoAuth.set(false);
 
       if (firebaseUser) {
@@ -80,7 +108,7 @@ export class AuthService {
         this.loggingService.info('User authenticated via Firebase', {
           uid: usuario.uid,
           email: usuario.email,
-          provider: usuario.providerId
+          provider: usuario.providerId,
         });
       } else {
         this.usuarioLogado.set(null);
@@ -99,7 +127,7 @@ export class AuthService {
       email: firebaseUser.email || '',
       nome: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuário',
       photoURL: firebaseUser.photoURL || undefined,
-      providerId: firebaseUser.providerData[0]?.providerId || 'password'
+      providerId: firebaseUser.providerData[0]?.providerId || 'password',
     };
   }
 
@@ -111,38 +139,33 @@ export class AuthService {
 
     try {
       this.loggingService.info('Email login attempt started', {
-        email: loginData.email
+        email: loginData.email,
       });
 
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        loginData.email,
-        loginData.senha
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, loginData.email, loginData.senha);
 
       const duration = Date.now() - startTime;
 
       this.loggingService.info('Email login successful', {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
-        duration: `${duration}ms`
+        duration: `${duration}ms`,
       });
 
       this.toastService.success('Login realizado com sucesso!', 'Bem-vindo');
       await this.router.navigate(['/lista']);
       return true;
-
-    } catch (error: any) {
+    } catch (error: unknown) {
       const duration = Date.now() - startTime;
 
       this.loggingService.error('Email login failed', {
         email: loginData.email,
-        error: error.code,
-        message: error.message,
-        duration: `${duration}ms`
+        error: (error as AuthError).code,
+        message: (error as AuthError).message,
+        duration: `${duration}ms`,
       });
 
-      this.tratarErroLogin(error);
+      this.tratarErroLogin(error as AuthError);
       return false;
     }
   }
@@ -163,27 +186,23 @@ export class AuthService {
       this.loggingService.info('Google login successful', {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
-        duration: `${duration}ms`
+        duration: `${duration}ms`,
       });
 
-      this.toastService.success(
-        `Bem-vindo, ${userCredential.user.displayName}!`,
-        'Login Google'
-      );
+      this.toastService.success(`Bem-vindo, ${userCredential.user.displayName}!`, 'Login Google');
 
       await this.router.navigate(['/lista']);
       return true;
-
-    } catch (error: any) {
+    } catch (error: unknown) {
       const duration = Date.now() - startTime;
 
       this.loggingService.error('Google login failed', {
-        error: error.code,
-        message: error.message,
-        duration: `${duration}ms`
+        error: (error as AuthError).code,
+        message: (error as AuthError).message,
+        duration: `${duration}ms`,
       });
 
-      this.tratarErroLogin(error);
+      this.tratarErroLogin(error as AuthError);
       return false;
     }
   }
@@ -197,19 +216,15 @@ export class AuthService {
     try {
       this.loggingService.info('User registration attempt started', {
         email: cadastroData.email,
-        nome: cadastroData.nome
+        nome: cadastroData.nome,
       });
 
       // Cria usuário
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        cadastroData.email,
-        cadastroData.senha
-      );
+      const userCredential = await createUserWithEmailAndPassword(auth, cadastroData.email, cadastroData.senha);
 
       // Atualiza perfil com nome
       await updateProfile(userCredential.user, {
-        displayName: cadastroData.nome
+        displayName: cadastroData.nome,
       });
 
       const duration = Date.now() - startTime;
@@ -218,28 +233,24 @@ export class AuthService {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         nome: cadastroData.nome,
-        duration: `${duration}ms`
+        duration: `${duration}ms`,
       });
 
-      this.toastService.success(
-        `Conta criada com sucesso! Bem-vindo, ${cadastroData.nome}!`,
-        'Cadastro Realizado'
-      );
+      this.toastService.success(`Conta criada com sucesso! Bem-vindo, ${cadastroData.nome}!`, 'Cadastro Realizado');
 
       await this.router.navigate(['/lista']);
       return true;
-
-    } catch (error: any) {
+    } catch (error: unknown) {
       const duration = Date.now() - startTime;
 
       this.loggingService.error('User registration failed', {
         email: cadastroData.email,
-        error: error.code,
-        message: error.message,
-        duration: `${duration}ms`
+        error: (error as AuthError).code,
+        message: (error as AuthError).message,
+        duration: `${duration}ms`,
       });
 
-      this.tratarErroCadastro(error);
+      this.tratarErroCadastro(error as AuthError);
       return false;
     }
   }
@@ -253,7 +264,7 @@ export class AuthService {
 
       this.loggingService.info('Logout initiated', {
         uid: currentUser?.uid,
-        email: currentUser?.email
+        email: currentUser?.email,
       });
 
       await signOut(auth);
@@ -262,11 +273,10 @@ export class AuthService {
       this.loggingService.info('Logout completed successfully');
 
       await this.router.navigate(['/login']);
-
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.loggingService.error('Logout error', {
-        error: error.code,
-        message: error.message
+        error: (error as AuthError).code,
+        message: (error as AuthError).message,
       });
 
       this.toastService.error('Erro ao fazer logout. Tente novamente.');
@@ -276,7 +286,7 @@ export class AuthService {
   /**
    * Trata erros específicos de login
    */
-  private tratarErroLogin(error: any): void {
+  private tratarErroLogin(error: AuthError): void {
     const errorMessages: Record<string, string> = {
       'auth/user-not-found': 'Usuário não encontrado. Verifique o email ou cadastre-se.',
       'auth/wrong-password': 'Senha incorreta. Tente novamente.',
@@ -286,7 +296,7 @@ export class AuthService {
       'auth/popup-closed-by-user': 'Login cancelado pelo usuário.',
       'auth/popup-blocked': 'Pop-up bloqueado. Permita pop-ups para este site.',
       'auth/network-request-failed': 'Erro de conexão. Verifique sua internet.',
-      'auth/invalid-credential': 'Credenciais inválidas. Verifique email e senha.'
+      'auth/invalid-credential': 'Credenciais inválidas. Verifique email e senha.',
     };
 
     const message = errorMessages[error.code] || 'Erro inesperado no login. Tente novamente.';
@@ -296,13 +306,13 @@ export class AuthService {
   /**
    * Trata erros específicos de cadastro
    */
-  private tratarErroCadastro(error: any): void {
+  private tratarErroCadastro(error: AuthError): void {
     const errorMessages: Record<string, string> = {
       'auth/email-already-in-use': 'Este email já está em uso. Tente fazer login.',
       'auth/weak-password': 'A senha deve ter pelo menos 6 caracteres.',
       'auth/invalid-email': 'Email inválido. Verifique o formato.',
       'auth/operation-not-allowed': 'Cadastro não permitido. Contate o suporte.',
-      'auth/network-request-failed': 'Erro de conexão. Verifique sua internet.'
+      'auth/network-request-failed': 'Erro de conexão. Verifique sua internet.',
     };
 
     const message = errorMessages[error.code] || 'Erro inesperado no cadastro. Tente novamente.';
@@ -319,7 +329,7 @@ export class AuthService {
     this.loggingService.debug('Session verification', {
       isValid: isValid,
       uid: usuario?.uid,
-      email: usuario?.email
+      email: usuario?.email,
     });
 
     return isValid;
@@ -333,7 +343,7 @@ export class AuthService {
     return {
       uid: usuario?.uid,
       email: usuario?.email,
-      nome: usuario?.nome
+      nome: usuario?.nome,
     };
   }
 }

@@ -1,53 +1,24 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { Router, CanActivateFn } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { LoggingService } from '../services/logging.service';
-import { firstValueFrom } from 'rxjs';
-import { filter } from 'rxjs/operators';
 
 /**
  * Guard que protege rotas autenticadas
  * Aguarda carregamento do Firebase e redireciona para login se necessário
  */
-export const authGuard: CanActivateFn = async (route, state) => {
+export const authGuard: CanActivateFn = () => {
   const authService = inject(AuthService);
   const router = inject(Router);
-  const loggingService = inject(LoggingService);
 
-  // Aguarda o Firebase terminar de carregar
-  if (authService.isCarregando()) {
-    loggingService.debug('AuthGuard: Waiting for Firebase to load...');
-
-    // Aguarda até que não esteja mais carregando
-    await new Promise<void>((resolve) => {
-      const checkLoading = () => {
-        if (!authService.isCarregando()) {
-          resolve();
-        } else {
-          setTimeout(checkLoading, 100);
-        }
-      };
-      checkLoading();
-    });
-  }
-
-  const isAuthenticated = authService.isAutenticado();
-
-  loggingService.debug('AuthGuard check', {
-    route: state.url,
-    isAuthenticated: isAuthenticated,
-    user: authService.usuario()?.email
-  });
-
-  if (isAuthenticated) {
+  // Verifica se o usuário está autenticado usando o computed signal
+  if (authService.isAutenticado()) {
     return true;
-  } else {
-    loggingService.info('AuthGuard: Redirecting to login', {
-      requestedRoute: state.url
-    });
-    router.navigate(['/login']);
-    return false;
   }
+
+  // Redireciona para login se não autenticado
+  router.navigate(['/login']);
+  return false;
 };
 
 /**
@@ -64,7 +35,7 @@ export const publicGuard: CanActivateFn = async (route, state) => {
     loggingService.debug('PublicGuard: Waiting for Firebase to load...');
 
     // Aguarda até que não esteja mais carregando
-    await new Promise<void>((resolve) => {
+    await new Promise<void>(resolve => {
       const checkLoading = () => {
         if (!authService.isCarregando()) {
           resolve();
@@ -81,7 +52,7 @@ export const publicGuard: CanActivateFn = async (route, state) => {
   loggingService.debug('PublicGuard check', {
     route: state.url,
     isAuthenticated: isAuthenticated,
-    user: authService.usuario()?.email
+    user: authService.usuario()?.email,
   });
 
   if (!isAuthenticated) {
@@ -89,7 +60,7 @@ export const publicGuard: CanActivateFn = async (route, state) => {
   } else {
     loggingService.info('PublicGuard: Redirecting to lista', {
       requestedRoute: state.url,
-      user: authService.usuario()?.email
+      user: authService.usuario()?.email,
     });
     router.navigate(['/lista']);
     return false;
