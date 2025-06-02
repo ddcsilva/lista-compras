@@ -44,4 +44,3 @@ Thumbs.db
 # Environment files (Firebase config)
 /src/environments/environment.ts
 /src/environments/environment.prod.ts
-src/environments/environment.*.ts
