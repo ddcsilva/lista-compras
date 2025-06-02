@@ -3,7 +3,9 @@ import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/
 import { db } from '../config/firebase.config';
 import { LoggingService } from './logging.service';
 import { ToastService } from './toast.service';
-import { UsuarioBasico, ResultadoBuscaUsuario, ValidacaoEmail } from '../models/usuario.model';
+import { UsuarioBasico } from '../models/usuario.model';
+import { ResultadoBuscaUsuario } from '../models/resultado-busca-usuario.model';
+import { ValidacaoEmail } from '../models/validaca-email.model';
 
 /**
  * Serviço para gerenciar operações com usuários
@@ -153,7 +155,7 @@ export class UsuarioService {
       });
 
       const resultados = await Promise.all(promises);
-      const usuariosValidos = resultados.filter((usuario): usuario is UsuarioBasico => usuario !== null);
+      const usuariosValidos = resultados.filter((usuario): usuario is Usuario => usuario !== null);
 
       this.loggingService.info('Busca múltipla concluída', {
         solicitados: uids.length,
