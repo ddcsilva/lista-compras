@@ -21,7 +21,7 @@ import { ToastService } from '../../../core/services/toast.service';
   templateUrl: './cadastro.component.html',
 })
 export class CadastroComponent {
-  cadastroForm: FormGroup;
+  cadastroForm!: FormGroup;
 
   // Signals para gerenciar estado do componente
   isCarregando = signal(false);
@@ -36,16 +36,17 @@ export class CadastroComponent {
     private router: Router,
     private loggingService: LoggingService,
     private toastService: ToastService
-  ) {
-    this.cadastroForm = this.criarFormulario();
-    this.loggingService.info('CadastroComponent initialized');
+  ) {}
+
+  ngOnInit(): void {
+    this.criarFormulario();
   }
 
   /**
    * Cria o formulário de cadastro com validações
    */
-  private criarFormulario(): FormGroup {
-    return this.formBuilder.group(
+  private criarFormulario(): void {
+    this.cadastroForm = this.formBuilder.group(
       {
         nome: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(50)]],
         email: ['', [Validators.required, Validators.email, Validators.maxLength(100)]],
@@ -81,21 +82,15 @@ export class CadastroComponent {
   /**
    * Alterna a visibilidade da senha
    */
-  alternarVisibilidadeSenha(): void {
+  togglePasswordVisibility(): void {
     this.mostrarSenha.update(valor => !valor);
-    this.loggingService.debug('Password visibility toggled', {
-      visible: this.mostrarSenha(),
-    });
   }
 
   /**
    * Alterna a visibilidade da confirmação de senha
    */
-  alternarVisibilidadeConfirmacaoSenha(): void {
+  toggleConfirmPasswordVisibility(): void {
     this.mostrarConfirmacaoSenha.update(valor => !valor);
-    this.loggingService.debug('Password confirmation visibility toggled', {
-      visible: this.mostrarConfirmacaoSenha(),
-    });
   }
 
   /**
@@ -162,73 +157,41 @@ export class CadastroComponent {
   async onSubmit(): Promise<void> {
     if (this.cadastroForm.invalid) {
       this.marcarCamposComoTocados();
-      this.loggingService.warn('Cadastro form submitted with validation errors');
       return;
     }
 
     this.isCarregando.set(true);
-    this.erroCadastro.set(null);
 
     try {
       const { nome, email, senha } = this.cadastroForm.value;
-
-      this.loggingService.info('Email cadastro form submitted', {
-        email: email,
-        nome: nome,
-        formValid: this.cadastroForm.valid,
-      });
-
-      const cadastroData: CadastroData = { nome, email, senha };
-      const sucesso = await this.authService.cadastrar(cadastroData);
+      const sucesso = await this.authService.cadastrar({ nome, email, senha });
 
       if (!sucesso) {
-        this.erroCadastro.set('Falha no cadastro. Verifique os dados e tente novamente.');
-        this.loggingService.warn('Email cadastro failed in component', {
-          email: email,
-          reason: 'registration_failed',
-        });
+        // Erro já tratado pelo AuthService
       }
     } catch (error) {
-      const errorMessage = 'Ocorreu um erro inesperado. Tente novamente.';
-      this.erroCadastro.set(errorMessage);
-
-      this.loggingService.logError(error as Error, 'CadastroComponent', {
-        action: 'email_cadastro_submission',
-        formData: {
-          email: this.cadastroForm.value.email,
-          nome: this.cadastroForm.value.nome,
-          hasPassword: !!this.cadastroForm.value.senha,
-        },
-      });
-
-      this.toastService.error('Erro inesperado durante o cadastro. Tente novamente.', 'Erro do Sistema');
+      this.loggingService.error('Unexpected registration error', { error });
     } finally {
       this.isCarregando.set(false);
     }
   }
 
   /**
-   * Cadastro com Google
+   * Realiza cadastro com Google
    */
-  async loginComGoogle(): Promise<void> {
-    this.isCarregandoGoogle.set(true);
+  async cadastroGoogle(): Promise<void> {
+    this.isCarregando.set(true);
 
     try {
-      this.loggingService.info('Google cadastro initiated from component');
-
       const sucesso = await this.authService.loginGoogle();
 
       if (!sucesso) {
-        this.loggingService.warn('Google cadastro failed in component');
+        // Erro já tratado pelo AuthService
       }
     } catch (error) {
-      this.loggingService.logError(error as Error, 'CadastroComponent', {
-        action: 'google_cadastro',
-      });
-
-      this.toastService.error('Erro no cadastro com Google. Tente novamente.', 'Erro do Sistema');
+      this.loggingService.error('Unexpected Google registration error', { error });
     } finally {
-      this.isCarregandoGoogle.set(false);
+      this.isCarregando.set(false);
     }
   }
 

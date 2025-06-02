@@ -77,6 +77,10 @@ export class ListaComponent implements OnDestroy {
   ) {
     this.formularioItem = this.criarFormularioItem();
     this.formularioLista = this.criarFormularioLista();
+    this.ngOnInit();
+  }
+
+  ngOnInit(): void {
     this.inicializarComponente();
     this.inicializarPWA();
   }
@@ -86,26 +90,15 @@ export class ListaComponent implements OnDestroy {
    */
   private async inicializarComponente(): Promise<void> {
     try {
-      this.loggingService.info('ListaComponent initialized', {
-        userId: this.usuario()?.email,
-      });
-
       // Subscreve à lista atual
       const listaAtualSubscription = this.listaService.listaAtual$.subscribe(lista => {
         this.listaAtual.set(lista);
-        this.loggingService.debug('Lista atual updated', {
-          listaId: lista?.id,
-          itensCount: lista?.itens?.length || 0,
-        });
         this.cdr.markForCheck();
       });
 
       // Subscreve às listas do usuário
       const listasUsuarioSubscription = this.listaService.listasUsuario$.subscribe(listas => {
         this.listasUsuario.set(listas);
-        this.loggingService.debug('Listas do usuário updated', {
-          listasCount: listas.length,
-        });
         this.cdr.markForCheck();
       });
 
@@ -117,10 +110,6 @@ export class ListaComponent implements OnDestroy {
 
       // Subscreve a mudanças no usuário para atualizar header
       const userSubscription = this.authService.usuario$.subscribe(usuario => {
-        this.loggingService.debug('User updated', {
-          nome: usuario?.nome,
-          email: usuario?.email,
-        });
         this.cdr.markForCheck();
       });
 
@@ -180,7 +169,6 @@ export class ListaComponent implements OnDestroy {
       if (novaLista) {
         this.formularioLista.reset({ categoria: 'Compras', cor: '#3B82F6' });
         this.modoEdicaoLista.set(false);
-        this.loggingService.info('Lista created successfully', { listaId: novaLista.id });
       }
     } catch (error) {
       this.handleComponentError(error, 'criar lista');
@@ -195,7 +183,6 @@ export class ListaComponent implements OnDestroy {
   selecionarLista(listaId: string): void {
     this.listaService.selecionarLista(listaId);
     this.mostrarSeletorListas.set(false);
-    this.loggingService.info('Lista selected from component', { listaId });
   }
 
   /**
@@ -251,10 +238,6 @@ export class ListaComponent implements OnDestroy {
 
         const sucesso = await this.listaService.atualizarItem(this.modoEdicao()!, edicao);
         if (sucesso) {
-          this.loggingService.info('Item edited', {
-            itemId: this.modoEdicao(),
-            nome,
-          });
           this.cancelarEdicao();
         }
       } else {
@@ -267,10 +250,6 @@ export class ListaComponent implements OnDestroy {
 
         const itemCriado = await this.listaService.adicionarItem(novoItem);
         if (itemCriado) {
-          this.loggingService.info('Item created', {
-            itemId: itemCriado.id,
-            nome,
-          });
           this.formularioItem.reset({ categoria: 'Geral', quantidade: 1 });
         }
       }
@@ -292,8 +271,6 @@ export class ListaComponent implements OnDestroy {
         categoria: item.categoria,
         quantidade: item.quantidade,
       });
-
-      this.loggingService.debug('Edit mode activated', { itemId: item.id });
     } catch (error) {
       this.handleComponentError(error, 'editar o item');
     }
@@ -305,7 +282,6 @@ export class ListaComponent implements OnDestroy {
   cancelarEdicao(): void {
     this.modoEdicao.set(null);
     this.formularioItem.reset({ categoria: 'Geral', quantidade: 1 });
-    this.loggingService.debug('Edit mode cancelled');
   }
 
   /**
@@ -316,10 +292,7 @@ export class ListaComponent implements OnDestroy {
       try {
         const sucesso = await this.listaService.removerItem(item.id);
         if (sucesso) {
-          this.loggingService.info('Item removed', {
-            itemId: item.id,
-            nome: item.nome,
-          });
+          // Item removed successfully
         }
       } catch (error) {
         this.handleComponentError(error, 'remover o item');
@@ -341,10 +314,6 @@ export class ListaComponent implements OnDestroy {
       if (sucesso) {
         const acao = !item.concluido ? 'concluído' : 'reaberto';
         this.toastService.info(`Item ${acao}!`);
-        this.loggingService.info('Item status changed', {
-          itemId: item.id,
-          concluido: !item.concluido,
-        });
       }
     } catch (error) {
       this.handleComponentError(error, 'alterar status do item');
@@ -356,8 +325,6 @@ export class ListaComponent implements OnDestroy {
    */
   alternarVisualizacaoConcluidos(): void {
     this.mostrarConcluidos.update(valor => !valor);
-    const acao = this.mostrarConcluidos() ? 'mostrando' : 'ocultando';
-    this.loggingService.debug(`Toggled completed items visibility: ${acao}`);
   }
 
   /**
@@ -377,7 +344,7 @@ export class ListaComponent implements OnDestroy {
         const sucesso = await this.listaService.removerItensConcluidos();
 
         if (sucesso) {
-          this.loggingService.info('Completed items cleared', { count: totalConcluidos });
+          // Completed items cleared successfully
         }
       } catch (error) {
         this.handleComponentError(error, 'limpar itens concluídos');
@@ -416,10 +383,8 @@ export class ListaComponent implements OnDestroy {
 
         if (sucessos === total) {
           this.toastService.success('Lista limpa com sucesso!');
-          this.loggingService.info('List cleared completely', { itemsRemoved: sucessos });
         } else {
           this.toastService.warning(`${sucessos}/${total} itens removidos`);
-          this.loggingService.warn('Partial list clear', { sucessos, total });
         }
       } catch (error) {
         this.handleComponentError(error, 'limpar toda a lista');
@@ -443,7 +408,7 @@ export class ListaComponent implements OnDestroy {
       try {
         const sucesso = await this.listaService.arquivarLista(lista.id);
         if (sucesso) {
-          this.loggingService.info('Lista archived', { listaId: lista.id });
+          // Lista archived successfully
         }
       } catch (error) {
         this.handleComponentError(error, 'arquivar lista');
@@ -465,7 +430,7 @@ export class ListaComponent implements OnDestroy {
       try {
         const sucesso = await this.listaService.removerLista(lista.id);
         if (sucesso) {
-          this.loggingService.info('Lista deleted', { listaId: lista.id });
+          // Lista deleted successfully
         }
       } catch (error) {
         this.handleComponentError(error, 'remover lista');
@@ -502,8 +467,6 @@ export class ListaComponent implements OnDestroy {
     this.tentativaReconexao.set(true);
 
     try {
-      this.loggingService.info('Attempting to reconnect/reload');
-
       // Reinicia inicialização
       await this.inicializarComponente();
 
@@ -641,7 +604,7 @@ export class ListaComponent implements OnDestroy {
     try {
       const sucesso = await this.pwaService.showInstallPrompt();
       if (sucesso) {
-        this.loggingService.info('PWA installation prompt accepted');
+        // PWA installation successful
       }
     } catch (error) {
       this.loggingService.error('Failed to show install prompt', { error });
@@ -679,8 +642,6 @@ export class ListaComponent implements OnDestroy {
       const totalItens = cacheInfo.reduce((total, cache) => total + cache.size, 0);
 
       this.toastService.info(`${cacheInfo.length} caches ativos com ${totalItens} itens`, 'Informações do Cache', 5000);
-
-      this.loggingService.info('Cache info retrieved', { cacheInfo });
     } catch (error) {
       this.loggingService.error('Failed to get cache info', { error });
     }
@@ -700,6 +661,5 @@ export class ListaComponent implements OnDestroy {
    */
   ngOnDestroy(): void {
     this.subscriptions.forEach(sub => sub.unsubscribe());
-    this.loggingService.info('ListaComponent destroyed');
   }
 }

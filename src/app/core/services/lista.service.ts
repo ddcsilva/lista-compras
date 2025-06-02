@@ -88,45 +88,41 @@ export class ListaService implements OnDestroy {
     // Monitor de conexão
     window.addEventListener('online', () => {
       this.isOnlineSubject.next(true);
-      this.loggingService.info('Connection restored');
       this.sincronizarDados();
     });
 
     window.addEventListener('offline', () => {
       this.isOnlineSubject.next(false);
-      this.loggingService.warn('Connection lost - working offline');
     });
 
     // Listener de autenticação
     this.authService.usuario$.subscribe(usuario => {
-      const novoUsuarioId = usuario?.uid || null;
+      const previousUserId = this.currentUserId;
+      const newUserId = usuario?.uid || null;
 
-      // Evita reprocessar o mesmo usuário
-      if (this.currentUserId === novoUsuarioId) {
-        return;
-      }
-
-      this.loggingService.info('ListaService: User state changed', {
-        previousUserId: this.currentUserId,
-        newUserId: novoUsuarioId,
-        hasUser: !!usuario,
-        email: usuario?.email,
-      });
-
-      // Para todas as sincronizações imediatamente para evitar erros de permissão
-      this.pararTodasSincronizacoes();
-
-      // Atualiza usuário atual
-      this.currentUserId = novoUsuarioId;
-
-      if (usuario) {
-        // Inicia sincronização das listas do usuário
-        this.iniciarSincronizacaoListasUsuario(usuario.uid);
-      } else {
-        // Limpa estado quando usuário sai
-        this.limparEstado();
+      if (previousUserId !== newUserId) {
+        this.handleUserChange(newUserId);
       }
     });
+  }
+
+  /**
+   * Gerencia mudanças de usuário
+   */
+  private handleUserChange(newUserId: string | null): void {
+    // Para todas as sincronizações atuais
+    this.pararTodasSincronizacoes();
+
+    // Limpa estado local
+    this.limparEstado();
+
+    // Atualiza o usuário atual
+    this.currentUserId = newUserId;
+
+    // Se há um novo usuário, inicia sincronização
+    if (newUserId) {
+      this.iniciarSincronizacaoListasUsuario(newUserId);
+    }
   }
 
   /**
@@ -134,11 +130,8 @@ export class ListaService implements OnDestroy {
    */
   private iniciarSincronizacaoListasUsuario(usuarioId: string): void {
     if (!navigator.onLine) {
-      this.loggingService.warn('Offline - skipping lists sync');
       return;
     }
-
-    this.loggingService.info('Starting user lists sync', { usuarioId });
 
     try {
       // Query simplificada para evitar necessidade de índice composto
@@ -173,11 +166,6 @@ export class ListaService implements OnDestroy {
           // Ordena as listas no cliente por data de atualização (mais recente primeiro)
           listas.sort((a, b) => b.dataAtualizacao.getTime() - a.dataAtualizacao.getTime());
 
-          this.loggingService.debug('User lists sync completed', {
-            listasCount: listas.length,
-            usuarioId,
-          });
-
           this.listasUsuarioSubject.next(listas);
 
           // Se não há lista atual selecionada, seleciona a primeira
@@ -186,11 +174,6 @@ export class ListaService implements OnDestroy {
           }
         },
         error => {
-          this.loggingService.error('User lists sync error', {
-            error: error.message,
-            code: error.code,
-            usuarioId,
-          });
           this.tratarErroSincronizacao(error);
         }
       );
@@ -207,11 +190,8 @@ export class ListaService implements OnDestroy {
    */
   private iniciarSincronizacaoLista(listaId: string): void {
     if (!navigator.onLine) {
-      this.loggingService.warn('Offline - skipping list sync');
       return;
     }
-
-    this.loggingService.info('Starting list sync', { listaId });
 
     try {
       const listaRef = doc(db, this.COLLECTION_LISTAS, listaId);
@@ -234,14 +214,8 @@ export class ListaService implements OnDestroy {
               compartilhadaCom: data['compartilhadaCom'] || [],
             };
 
-            this.loggingService.debug('List sync completed', {
-              listaId,
-              itensCount: lista.itens.length,
-            });
-
             this.listaAtualSubject.next(lista);
           } else {
-            this.loggingService.warn('List not found', { listaId });
             this.listaAtualSubject.next(null);
           }
         },
@@ -304,12 +278,6 @@ export class ListaService implements OnDestroy {
 
       const listaCriada: Lista = { ...lista, id: listaRef.id };
 
-      this.loggingService.info('Lista created successfully', {
-        listaId: listaRef.id,
-        nome: lista.nome,
-        categoria: lista.categoria,
-      });
-
       this.toastService.success(`Lista "${lista.nome}" criada com sucesso!`);
 
       // Seleciona a nova lista automaticamente
@@ -342,8 +310,6 @@ export class ListaService implements OnDestroy {
 
     this.listaAtualId = listaId;
     this.iniciarSincronizacaoLista(listaId);
-
-    this.loggingService.info('Lista selected', { listaId });
   }
 
   /**
@@ -374,14 +340,8 @@ export class ListaService implements OnDestroy {
           compartilhadaCom: data['compartilhadaCom'] || [],
         };
 
-        this.loggingService.info('Lista fetched successfully', {
-          listaId,
-          itensCount: lista.itens.length,
-        });
-
         return lista;
       } else {
-        this.loggingService.warn('Lista not found', { listaId });
         return null;
       }
     } catch (error: unknown) {
@@ -451,12 +411,6 @@ export class ListaService implements OnDestroy {
         });
       });
 
-      this.loggingService.info('Item added successfully', {
-        listaId: listaAtual.id,
-        itemId: item.id,
-        nome: item.nome,
-      });
-
       this.toastService.success(`Item "${item.nome}" adicionado!`);
       return item;
     } catch (error: unknown) {
@@ -519,12 +473,6 @@ export class ListaService implements OnDestroy {
         });
       });
 
-      this.loggingService.info('Item updated successfully', {
-        listaId: listaAtual.id,
-        itemId,
-        edicao,
-      });
-
       this.toastService.success('Item atualizado!');
       return true;
     } catch (error: unknown) {
@@ -578,12 +526,6 @@ export class ListaService implements OnDestroy {
           itens: itensAtualizados,
           dataAtualizacao: Timestamp.fromDate(new Date()),
         });
-      });
-
-      this.loggingService.info('Item removed successfully', {
-        listaId: listaAtual.id,
-        itemId,
-        nome: itemParaRemover.nome,
       });
 
       this.toastService.success(`Item "${itemParaRemover.nome}" removido!`);
@@ -640,11 +582,6 @@ export class ListaService implements OnDestroy {
         });
       });
 
-      this.loggingService.info('Completed items removed', {
-        listaId: listaAtual.id,
-        removedCount: itensConcluidos.length,
-      });
-
       this.toastService.success(`${itensConcluidos.length} itens concluídos removidos!`);
       return true;
     } catch (error: unknown) {
@@ -674,7 +611,6 @@ export class ListaService implements OnDestroy {
         dataAtualizacao: Timestamp.fromDate(new Date()),
       });
 
-      this.loggingService.info('Lista archived', { listaId });
       this.toastService.success('Lista arquivada!');
       return true;
     } catch (error: unknown) {
@@ -700,15 +636,13 @@ export class ListaService implements OnDestroy {
       const listaRef = doc(db, this.COLLECTION_LISTAS, listaId);
       await deleteDoc(listaRef);
 
-      this.loggingService.info('Lista deleted permanently', { listaId });
-      this.toastService.success('Lista removida permanentemente!');
-
       // Se era a lista atual, limpa a seleção
       if (this.listaAtualId === listaId) {
         this.listaAtualId = null;
         this.listaAtualSubject.next(null);
       }
 
+      this.toastService.success('Lista removida permanentemente!');
       return true;
     } catch (error: unknown) {
       this.loggingService.error('Failed to delete lista', {
@@ -783,7 +717,6 @@ export class ListaService implements OnDestroy {
 
     this.currentUserId = null;
     this.listaAtualId = null;
-    this.loggingService.info('All syncs stopped');
   }
 
   /**
@@ -792,7 +725,6 @@ export class ListaService implements OnDestroy {
   private limparEstado(): void {
     this.listaAtualSubject.next(null);
     this.listasUsuarioSubject.next([]);
-    this.loggingService.info('Local state cleared');
   }
 
   /**
@@ -802,10 +734,6 @@ export class ListaService implements OnDestroy {
     // Não exibe erros se usuário não está autenticado (durante logout)
     const usuario = this.authService.usuario();
     if (!usuario) {
-      this.loggingService.debug('Ignoring sync error - user not authenticated', {
-        error: error.code,
-        message: error.message,
-      });
       return;
     }
 

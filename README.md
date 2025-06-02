@@ -21,10 +21,10 @@ Uma aplicação Progressive Web App (PWA) moderna para gerenciamento de listas d
 
 ## 🏗️ Estrutura do Projeto
 
-```
+```bash
 src/
 ├── app/
-│   ├── core/                 # Serviços e configurações globais
+│   ├── core/                # Serviços e configurações globais
 │   │   ├── guards/          # Guards de rota
 │   │   ├── services/        # Serviços (auth, storage, etc.)
 │   │   └── config/          # Configurações Firebase
@@ -49,23 +49,27 @@ src/
 ### Instalação
 
 1. Clone o repositório:
+
 ```bash
 git clone https://github.com/ddcsilva/vai-na-lista.git
 cd vai-na-lista
 ```
 
-2. Instale as dependências:
+2.Instale as dependências:
+
 ```bash
 npm install
 ```
 
-3. Configure o Firebase:
-   - Crie um projeto no [Firebase Console](https://console.firebase.google.com)
-   - Configure Authentication (Email/Password)
-   - Configure Firestore Database
-   - Copie as configurações para `src/environments/environment.ts`
+3.Configure o Firebase:
 
-4. Execute o projeto:
+- Crie um projeto no [Firebase Console](https://console.firebase.google.com)
+  - Configure Authentication (Email/Password)
+  - Configure Firestore Database
+  - Copie as configurações para `src/environments/environment.ts`
+
+4.Execute o projeto:
+
 ```bash
 npm start
 ```
@@ -115,7 +119,7 @@ npm run deploy:hosting
 
 ## 🌐 Demo
 
-**Produção:** https://vai-na-lista-f9551.web.app
+**Produção:** <https://vai-na-lista-f9551.web.app>
 
 ## 📋 Status do Projeto
 
@@ -141,9 +145,10 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 ## 👨‍💻 Autor
 
-**Daniel da Silva**
+**Danilo Silva**
+
 - GitHub: [@ddcsilva](https://github.com/ddcsilva)
-- LinkedIn: [Daniel da Silva](https://linkedin.com/in/ddcsilva)
+- LinkedIn: [Danilo Silva](https://linkedin.com/in/ddcsilva)
 
 ---
 

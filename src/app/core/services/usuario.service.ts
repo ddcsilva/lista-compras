@@ -27,7 +27,13 @@ export class UsuarioService {
     private loggingService: LoggingService,
     private toastService: ToastService
   ) {
-    this.carregarHistoricoLocal();
+    try {
+      this.carregarHistoricoLocal();
+    } catch (error) {
+      this.loggingService.warn('Erro ao inicializar UsuarioService', {
+        error: (error as Error).message,
+      });
+    }
   }
 
   /**

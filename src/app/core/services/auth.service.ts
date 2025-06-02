@@ -104,16 +104,9 @@ export class AuthService {
         const usuario = this.mapearUsuarioFirebase(firebaseUser);
         this.usuarioLogado.set(usuario);
         this.storageService.setItem(this.STORAGE_KEY, usuario);
-
-        this.loggingService.info('User authenticated via Firebase', {
-          uid: usuario.uid,
-          email: usuario.email,
-          provider: usuario.providerId,
-        });
       } else {
         this.usuarioLogado.set(null);
         this.storageService.removeItem(this.STORAGE_KEY);
-        this.loggingService.info('User signed out');
       }
     });
   }

@@ -19,24 +19,12 @@ export class StorageService {
    */
   setItem<T>(key: string, value: T): void {
     try {
-      const fullKey = this.PREFIX + key;
-      const serializedValue = JSON.stringify({
-        data: value,
-        timestamp: Date.now(),
-        version: '1.0',
-      });
-
-      localStorage.setItem(fullKey, serializedValue);
-
-      this.loggingService.debug('Item stored in localStorage', {
-        key: fullKey,
-        dataType: typeof value,
-        size: serializedValue.length,
-      });
-    } catch (error: any) {
+      const serializedValue = JSON.stringify(value);
+      localStorage.setItem(key, serializedValue);
+    } catch (error) {
       this.loggingService.error('Failed to store item in localStorage', {
         key,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -46,26 +34,16 @@ export class StorageService {
    */
   getItem<T>(key: string): T | null {
     try {
-      const fullKey = this.PREFIX + key;
-      const item = localStorage.getItem(fullKey);
-
-      if (!item) {
+      const item = localStorage.getItem(key);
+      if (item === null) {
         return null;
       }
 
-      const parsed = JSON.parse(item);
-
-      this.loggingService.debug('Item retrieved from localStorage', {
-        key: fullKey,
-        hasData: !!parsed.data,
-        timestamp: parsed.timestamp,
-      });
-
-      return parsed.data;
-    } catch (error: any) {
+      return JSON.parse(item) as T;
+    } catch (error) {
       this.loggingService.error('Failed to retrieve item from localStorage', {
         key,
-        error: error.message,
+        error: (error as Error).message,
       });
       return null;
     }
@@ -76,35 +54,33 @@ export class StorageService {
    */
   removeItem(key: string): void {
     try {
-      const fullKey = this.PREFIX + key;
-      localStorage.removeItem(fullKey);
-
-      this.loggingService.debug('Item removed from localStorage', {
-        key: fullKey,
-      });
-    } catch (error: any) {
+      localStorage.removeItem(key);
+    } catch (error) {
       this.loggingService.error('Failed to remove item from localStorage', {
         key,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
 
   /**
-   * Limpa todos os dados da aplicação
+   * Limpa todos os dados do localStorage relacionados ao app
    */
   clear(): void {
     try {
-      const keys = Object.keys(localStorage).filter(key => key.startsWith(this.PREFIX));
+      const keysToRemove: string[] = [];
 
-      keys.forEach(key => localStorage.removeItem(key));
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(this.PREFIX)) {
+          keysToRemove.push(key);
+        }
+      }
 
-      this.loggingService.info('localStorage cleared', {
-        itemsRemoved: keys.length,
-      });
-    } catch (error: any) {
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+    } catch (error) {
       this.loggingService.error('Failed to clear localStorage', {
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }

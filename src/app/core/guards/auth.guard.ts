@@ -49,19 +49,9 @@ export const publicGuard: CanActivateFn = async (route, state) => {
 
   const isAuthenticated = authService.isAutenticado();
 
-  loggingService.debug('PublicGuard check', {
-    route: state.url,
-    isAuthenticated: isAuthenticated,
-    user: authService.usuario()?.email,
-  });
-
   if (!isAuthenticated) {
     return true;
   } else {
-    loggingService.info('PublicGuard: Redirecting to lista', {
-      requestedRoute: state.url,
-      user: authService.usuario()?.email,
-    });
     router.navigate(['/lista']);
     return false;
   }
