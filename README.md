@@ -4,15 +4,18 @@ Uma aplicação moderna de lista de compras desenvolvida com Angular 18, seguind
 
 ## 🎯 Sobre o Projeto
 
-O **Vai na Lista** é um MVP de aplicativo para gerenciar listas de compras de forma simples e eficiente. Desenvolvido com foco em escalabilidade, organização e boas práticas de desenvolvimento, incluindo um sistema robusto de **Error Handling & Logging** e **otimizações avançadas de performance**.
+O **Vai na Lista** é um MVP de aplicativo para gerenciar listas de compras de forma simples e eficiente. Desenvolvido com foco em escalabilidade, organização e boas práticas de desenvolvimento, incluindo um sistema robusto de **Error Handling & Logging**, **otimizações avançadas de performance** e **autenticação real com Firebase**.
 
 ## ✨ Funcionalidades
 
-### 🔐 Autenticação
-- Login fake (aceita qualquer email válido e senha com 3+ caracteres)
-- Persistência de sessão no localStorage
-- Guards de proteção de rotas
-- Logout com confirmação
+### 🔐 Autenticação (Firebase)
+- **Login com Google** - Autenticação rápida e segura via Google
+- **Cadastro com email/senha** - Criação de conta tradicional
+- **Login com email/senha** - Acesso com credenciais personalizadas
+- **Persistência de sessão** - Usuário permanece logado entre sessões
+- **Guards de proteção** - Rotas protegidas por autenticação
+- **Logout seguro** - Encerramento de sessão com confirmação
+- **Tratamento de erros** - Mensagens amigáveis para todos os cenários
 
 ### 📝 Gerenciamento de Lista
 - ➕ Adicionar itens com descrição e quantidade
@@ -45,6 +48,7 @@ O **Vai na Lista** é um MVP de aplicativo para gerenciar listas de compras de f
 ## 🛠 Tecnologias Utilizadas
 
 - **Angular 18** - Framework principal
+- **Firebase Authentication** - Autenticação real com Google e email/senha
 - **Standalone Components** - Arquitetura moderna sem NgModules
 - **Angular Signals** - Gerenciamento de estado reativo otimizado
 - **TailwindCSS** - Framework de CSS utilitário
@@ -60,26 +64,32 @@ O projeto segue a **arquitetura enterprise** recomendada por Tomas Trajan com **
 ```
 src/app/
 ├── core/                           # Serviços singleton e funcionalidades core
+│   ├── config/                    # Configurações (Firebase, etc.)
+│   │   └── firebase.config.ts     # Configuração do Firebase
 │   ├── guards/                    # Guards de rota
+│   │   └── auth.guard.ts          # Proteção de rotas (Firebase)
 │   ├── services/                  # Serviços principais (otimizados com computed signals)
-│   │   ├── auth.service.ts       # Autenticação
-│   │   ├── storage.service.ts    # Abstração do localStorage
-│   │   ├── logging.service.ts    # Sistema de logging centralizado
-│   │   └── toast.service.ts      # Gerenciamento de notificações
-│   └── interceptors/             # Interceptors HTTP
-│       └── error.interceptor.ts  # Tratamento global de erros
+│   │   ├── auth.service.ts        # Autenticação Firebase
+│   │   ├── storage.service.ts     # Abstração do localStorage
+│   │   ├── logging.service.ts     # Sistema de logging centralizado
+│   │   └── toast.service.ts       # Gerenciamento de notificações
+│   └── interceptors/              # Interceptors HTTP
+│       └── error.interceptor.ts   # Tratamento global de erros
 ├── shared/                        # Componentes, pipes e utilitários compartilhados
-│   ├── components/               # Componentes reutilizáveis (OnPush otimizados)
-│   │   ├── loading/             # Indicador de carregamento
-│   │   └── toast/               # Sistema de notificações visuais
-│   └── models/                  # Interfaces e tipos
-├── features/                     # Módulos de funcionalidades
-│   ├── autenticacao/            # Feature de login
-│   └── lista/                   # Feature de lista de compras
-├── docs/                        # Documentação técnica
-│   ├── error-handling-system.md # Sistema de tratamento de erros
-│   └── performance-optimization.md # Otimizações de performance
-└── app.routes.ts               # Configuração de rotas com lazy loading + preloading
+│   ├── components/                # Componentes reutilizáveis (OnPush otimizados)
+│   │   ├── loading/               # Indicador de carregamento
+│   │   └── toast/                 # Sistema de notificações visuais
+│   └── models/                    # Interfaces e tipos
+├── features/                      # Módulos de funcionalidades
+│   ├── autenticacao/              # Feature de autenticação
+│   │   ├── login/                 # Login com Google + Email/Senha
+│   │   └── cadastro/              # Cadastro de novos usuários
+│   └── lista/                     # Feature de lista de compras
+├── environments/                  # Configurações de ambiente
+│   ├── environment.ts             # Desenvolvimento (gitignore)
+│   ├── environment.prod.ts        # Produção (gitignore)
+│   └── environment.example.ts     # Template para novos devs
+└── app.routes.ts                  # Configuração de rotas com lazy loading + preloading
 ```
 
 ### 🎨 Padrões Implementados
@@ -100,6 +110,7 @@ src/app/
 - Node.js 18+
 - npm ou yarn
 - Angular CLI 18+
+- Conta Firebase (gratuita)
 
 ### Instalação
 
@@ -114,35 +125,57 @@ src/app/
    npm install
    ```
 
-3. **Execute o projeto**
+3. **⚠️ Configure o Firebase**
+   ```bash
+   # Copie o template do environment
+   cp src/environments/environment.example.ts src/environments/environment.ts
+   cp src/environments/environment.example.ts src/environments/environment.prod.ts
+   ```
+
+   **📝 Edite os arquivos de environment:**
+   - Vá para [Firebase Console](https://console.firebase.google.com/)
+   - Crie um novo projeto ou use existente
+   - Ative **Authentication** e configure Google + Email/Password
+   - Copie as configurações para `environment.ts` e `environment.prod.ts`
+
+4. **Execute o projeto**
    ```bash
    ng serve
    ```
 
-4. **Acesse a aplicação**
+5. **Acesse a aplicação**
    ```
    http://localhost:4200
    ```
 
 ### 🧪 Como Testar
 
-#### Sistema de Autenticação
-1. **Acesse a tela de login**
-   - Use qualquer email válido (ex: `usuario@teste.com`)
-   - Use qualquer senha com 3+ caracteres (ex: `123`)
-   - Ou clique em "Preencher com dados de exemplo"
+#### Sistema de Autenticação Firebase
 
-#### Sistema de Notificações
-1. **Teste as notificações**
-   - Na tela de login, clique em "🧪 Testar Sistema de Notificações"
-   - Observe as 4 notificações sequenciais (sucesso, aviso, erro, info)
-   - Verifique a persistência e auto-dismiss
+##### **Login com Google**
+1. **Acesse a tela de login**
+2. **Clique em "Continuar com Google"**
+3. **Faça login com sua conta Google**
+4. **Será redirecionado para a lista automaticamente**
+
+##### **Cadastro com Email/Senha**
+1. **Acesse a tela de login**
+2. **Clique em "Cadastre-se aqui"**
+3. **Preencha nome, email e senha (mín. 6 caracteres)**
+4. **Clique em "Criar Conta"**
+5. **Será redirecionado para a lista após sucesso**
+
+##### **Login com Email/Senha**
+1. **Use a conta criada anteriormente**
+2. **Preencha email e senha**
+3. **Clique em "Entrar com Email"**
 
 #### Error Handling
-1. **Simule erros de rede**
-   - Desconecte a internet
-   - Tente fazer alguma ação
-   - Observe a notificação de erro de rede
+1. **Simule erros de autenticação**
+   - Tente cadastrar com email já existente
+   - Use senha com menos de 6 caracteres
+   - Tente login com credenciais inválidas
+   - Observe mensagens de erro específicas
 
 2. **Teste Fallback UI**
    - Simule uma falha de componente
@@ -282,6 +315,35 @@ npx webpack-bundle-analyzer dist/vai-na-lista/stats.json
 lighthouse http://localhost:4200 --only-categories=performance
 ```
 
+## 🔐 **Firebase Authentication**
+
+### **⚠️ Configuração de Segurança**
+
+Os arquivos de configuração do Firebase estão protegidos:
+
+```
+src/environments/
+├── environment.ts         # GITIGNORE - Dev config
+├── environment.prod.ts    # GITIGNORE - Prod config
+└── environment.example.ts # Template público
+```
+
+### **Funcionalidades**
+- ✅ **Login com Google** - OAuth 2.0 seguro
+- ✅ **Cadastro com email/senha** - Mínimo 6 caracteres
+- ✅ **Login com email/senha** - Validação robusta
+- ✅ **Logout seguro** - Limpeza de sessão
+- ✅ **Persistência automática** - Estado mantido entre sessões
+- ✅ **Guards inteligentes** - Proteção de rotas com loading
+- ✅ **Tratamento de erros** - Mensagens específicas em português
+
+### **Mensagens de Erro Personalizadas**
+- `auth/user-not-found` → "Usuário não encontrado. Verifique o email ou cadastre-se."
+- `auth/wrong-password` → "Senha incorreta. Tente novamente."
+- `auth/email-already-in-use` → "Este email já está em uso. Tente fazer login."
+- `auth/weak-password` → "A senha deve ter pelo menos 6 caracteres."
+- E muito mais...
+
 ## 🔮 Próximos Passos (Roadmap)
 
 ### Funcionalidades Futuras
@@ -289,8 +351,8 @@ lighthouse http://localhost:4200 --only-categories=performance
 - [ ] **Categorias** - Organizar itens por categorias
 - [ ] **Múltiplas Listas** - Criar várias listas
 - [ ] **Compartilhamento** - Compartilhar listas com outros usuários
-- [ ] **Sincronização** - Backend real com sincronização
-- [ ] **Notificações** - Lembretes e notificações push
+- [ ] **Firestore** - Backend real com sincronização na nuvem
+- [ ] **Notificações Push** - Lembretes e notificações push
 - [ ] **Modo Offline** - Funcionalidade offline completa
 - [ ] **Temas** - Modo escuro e temas personalizáveis
 
@@ -303,8 +365,8 @@ lighthouse http://localhost:4200 --only-categories=performance
 
 ### Sistema de Monitoramento
 - [ ] **Integração Sentry** - Monitoramento de erros em produção
-- [ ] **Firebase Crashlytics** - Relatórios de crash
-- [ ] **Analytics** - Métricas de uso e performance
+- [ ] **Firebase Analytics** - Métricas de uso detalhadas
+- [ ] **Performance Monitoring** - Monitoramento de performance
 - [ ] **Health Checks** - Monitoramento de saúde da aplicação
 
 ### Performance Avançada
@@ -315,8 +377,7 @@ lighthouse http://localhost:4200 --only-categories=performance
 
 ## 📚 Documentação Técnica
 
-- **[Sistema de Error Handling](docs/error-handling-system.md)** - Documentação completa do sistema de tratamento de erros
-- **[Otimizações de Performance](docs/performance-optimization.md)** - Guia completo das otimizações implementadas
+- **Firebase Authentication** - Integração e configuração do Firebase Auth
 - **Padrões de Código** - Convenções e best practices utilizadas
 - **Guia de Contribuição** - Como contribuir para o projeto
 
@@ -333,8 +394,9 @@ Desenvolvido seguindo as melhores práticas de Angular moderno e arquitetura ent
 - ✅ **UX/UI Moderno** - Design responsivo, acessível
 - ✅ **Robustez** - Error handling, logging, fallbacks
 - ✅ **Performance** - Computed signals, OnPush, preloading
+- ✅ **Segurança** - Firebase Authentication, guards
 - ✅ **Manutenibilidade** - Documentação, padrões, estrutura clara
 
 ---
 
-**Vai na Lista** - Sua lista de compras inteligente com sistema robusto de monitoramento e **máxima performance**! 🛒✨🛡️⚡
+**Vai na Lista** - Sua lista de compras inteligente com **autenticação Firebase**, sistema robusto de monitoramento e **máxima performance**! 🛒✨🛡️⚡🔐

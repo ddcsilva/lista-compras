@@ -1,11 +1,26 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+  User
+} from 'firebase/auth';
+import { auth } from '../config/firebase.config';
 import { StorageService } from './storage.service';
 import { LoggingService } from './logging.service';
+import { ToastService } from './toast.service';
 
 export interface Usuario {
+  uid: string;
   email: string;
   nome: string;
+  photoURL?: string;
+  providerId?: string;
 }
 
 export interface LoginData {
@@ -13,11 +28,16 @@ export interface LoginData {
   senha: string;
 }
 
+export interface CadastroData {
+  nome: string;
+  email: string;
+  senha: string;
+}
+
 /**
- * Serviço de autenticação fake
+ * Serviço de autenticação com Firebase
  * Gerencia o estado de autenticação do usuário usando signals
- * Persiste a sessão no localStorage
- * Integrado com sistema de logging para auditoria
+ * Suporte para login com Google e email/senha
  * Otimizado com computed signals para melhor performance
  */
 @Injectable({
@@ -25,164 +45,268 @@ export interface LoginData {
 })
 export class AuthService {
   private readonly STORAGE_KEY = 'vai-na-lista-usuario';
+  private googleProvider = new GoogleAuthProvider();
 
   // Signal para gerenciar o estado do usuário autenticado
   private usuarioLogado = signal<Usuario | null>(null);
+  private carregandoAuth = signal(true);
 
   // Computed signals para melhor performance (cached e reativo)
   readonly usuario = computed(() => this.usuarioLogado());
   readonly isAutenticado = computed(() => this.usuarioLogado() !== null);
+  readonly isCarregando = computed(() => this.carregandoAuth());
 
   constructor(
     private router: Router,
     private storageService: StorageService,
-    private loggingService: LoggingService
+    private loggingService: LoggingService,
+    private toastService: ToastService
   ) {
-    this.carregarUsuarioDoStorage();
+    this.inicializarAuth();
   }
 
   /**
-   * Carrega o usuário salvo no localStorage na inicialização
+   * Inicializa o listener de autenticação do Firebase
    */
-  private carregarUsuarioDoStorage(): void {
-    try {
-      const usuario = this.storageService.getItem<Usuario>(this.STORAGE_KEY);
-      if (usuario) {
-        this.usuarioLogado.set(usuario);
-        this.loggingService.info('User session restored from storage', {
-          userEmail: usuario.email,
-          userName: usuario.nome
-        });
-      } else {
-        this.loggingService.debug('No user session found in storage');
-      }
-    } catch (error) {
-      this.loggingService.error('Failed to load user from storage', error);
-    }
-  }
+  private inicializarAuth(): void {
+    onAuthStateChanged(auth, (firebaseUser) => {
+      this.carregandoAuth.set(false);
 
-  /**
-   * Realiza o login fake - aceita qualquer email/senha
-   * @param loginData Dados de login (email e senha)
-   * @returns Promise<boolean> - true se login foi bem-sucedido
-   */
-  async login(loginData: LoginData): Promise<boolean> {
-    const startTime = Date.now();
-
-    try {
-      this.loggingService.info('Login attempt started', {
-        email: loginData.email,
-        timestamp: new Date().toISOString()
-      });
-
-      // Simula uma chamada assíncrona para o backend
-      await this.simularDelay(800);
-
-      // Validação básica - aceita qualquer email válido
-      if (this.validarEmail(loginData.email) && loginData.senha.length >= 3) {
-        const usuario: Usuario = {
-          email: loginData.email,
-          nome: this.extrairNomeDoEmail(loginData.email)
-        };
-
-        // Salva o usuário no estado e no localStorage
+      if (firebaseUser) {
+        const usuario = this.mapearUsuarioFirebase(firebaseUser);
         this.usuarioLogado.set(usuario);
         this.storageService.setItem(this.STORAGE_KEY, usuario);
 
-        const duration = Date.now() - startTime;
-        this.loggingService.info('Login successful', {
-          userEmail: usuario.email,
-          userName: usuario.nome,
-          duration: `${duration}ms`
+        this.loggingService.info('User authenticated via Firebase', {
+          uid: usuario.uid,
+          email: usuario.email,
+          provider: usuario.providerId
         });
-
-        // Redireciona para a página de lista
-        await this.router.navigate(['/lista']);
-        return true;
       } else {
-        const duration = Date.now() - startTime;
-        this.loggingService.warn('Login failed - invalid credentials', {
-          email: loginData.email,
-          reason: !this.validarEmail(loginData.email) ? 'invalid_email' : 'weak_password',
-          duration: `${duration}ms`
-        });
-        return false;
+        this.usuarioLogado.set(null);
+        this.storageService.removeItem(this.STORAGE_KEY);
+        this.loggingService.info('User signed out');
       }
-    } catch (error) {
+    });
+  }
+
+  /**
+   * Converte User do Firebase para interface Usuario
+   */
+  private mapearUsuarioFirebase(firebaseUser: User): Usuario {
+    return {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email || '',
+      nome: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuário',
+      photoURL: firebaseUser.photoURL || undefined,
+      providerId: firebaseUser.providerData[0]?.providerId || 'password'
+    };
+  }
+
+  /**
+   * Login com email e senha
+   */
+  async loginEmailSenha(loginData: LoginData): Promise<boolean> {
+    const startTime = Date.now();
+
+    try {
+      this.loggingService.info('Email login attempt started', {
+        email: loginData.email
+      });
+
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        loginData.email,
+        loginData.senha
+      );
+
       const duration = Date.now() - startTime;
-      this.loggingService.error('Login error', {
-        error: error,
-        email: loginData.email,
+
+      this.loggingService.info('Email login successful', {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
         duration: `${duration}ms`
-      }, 'AuthService');
+      });
+
+      this.toastService.success('Login realizado com sucesso!', 'Bem-vindo');
+      await this.router.navigate(['/lista']);
+      return true;
+
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+
+      this.loggingService.error('Email login failed', {
+        email: loginData.email,
+        error: error.code,
+        message: error.message,
+        duration: `${duration}ms`
+      });
+
+      this.tratarErroLogin(error);
       return false;
     }
   }
 
   /**
-   * Realiza o logout
+   * Login com Google
+   */
+  async loginGoogle(): Promise<boolean> {
+    const startTime = Date.now();
+
+    try {
+      this.loggingService.info('Google login attempt started');
+
+      const userCredential = await signInWithPopup(auth, this.googleProvider);
+
+      const duration = Date.now() - startTime;
+
+      this.loggingService.info('Google login successful', {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        duration: `${duration}ms`
+      });
+
+      this.toastService.success(
+        `Bem-vindo, ${userCredential.user.displayName}!`,
+        'Login Google'
+      );
+
+      await this.router.navigate(['/lista']);
+      return true;
+
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+
+      this.loggingService.error('Google login failed', {
+        error: error.code,
+        message: error.message,
+        duration: `${duration}ms`
+      });
+
+      this.tratarErroLogin(error);
+      return false;
+    }
+  }
+
+  /**
+   * Cadastro com email e senha
+   */
+  async cadastrar(cadastroData: CadastroData): Promise<boolean> {
+    const startTime = Date.now();
+
+    try {
+      this.loggingService.info('User registration attempt started', {
+        email: cadastroData.email,
+        nome: cadastroData.nome
+      });
+
+      // Cria usuário
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        cadastroData.email,
+        cadastroData.senha
+      );
+
+      // Atualiza perfil com nome
+      await updateProfile(userCredential.user, {
+        displayName: cadastroData.nome
+      });
+
+      const duration = Date.now() - startTime;
+
+      this.loggingService.info('User registration successful', {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        nome: cadastroData.nome,
+        duration: `${duration}ms`
+      });
+
+      this.toastService.success(
+        `Conta criada com sucesso! Bem-vindo, ${cadastroData.nome}!`,
+        'Cadastro Realizado'
+      );
+
+      await this.router.navigate(['/lista']);
+      return true;
+
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+
+      this.loggingService.error('User registration failed', {
+        email: cadastroData.email,
+        error: error.code,
+        message: error.message,
+        duration: `${duration}ms`
+      });
+
+      this.tratarErroCadastro(error);
+      return false;
+    }
+  }
+
+  /**
+   * Logout
    */
   async logout(): Promise<void> {
     try {
       const currentUser = this.usuarioLogado();
 
       this.loggingService.info('Logout initiated', {
-        userEmail: currentUser?.email,
-        userName: currentUser?.nome,
-        timestamp: new Date().toISOString()
+        uid: currentUser?.uid,
+        email: currentUser?.email
       });
 
-      this.usuarioLogado.set(null);
-      this.storageService.removeItem(this.STORAGE_KEY);
+      await signOut(auth);
 
+      this.toastService.success('Logout realizado com sucesso!');
       this.loggingService.info('Logout completed successfully');
 
       await this.router.navigate(['/login']);
-    } catch (error) {
-      this.loggingService.error('Logout error', error, 'AuthService');
-      // Mesmo com erro, força o logout
-      this.usuarioLogado.set(null);
-      this.storageService.removeItem(this.STORAGE_KEY);
-      await this.router.navigate(['/login']);
+
+    } catch (error: any) {
+      this.loggingService.error('Logout error', {
+        error: error.code,
+        message: error.message
+      });
+
+      this.toastService.error('Erro ao fazer logout. Tente novamente.');
     }
   }
 
   /**
-   * Valida se o email tem formato válido
+   * Trata erros específicos de login
    */
-  private validarEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const isValid = emailRegex.test(email);
+  private tratarErroLogin(error: any): void {
+    const errorMessages: Record<string, string> = {
+      'auth/user-not-found': 'Usuário não encontrado. Verifique o email ou cadastre-se.',
+      'auth/wrong-password': 'Senha incorreta. Tente novamente.',
+      'auth/invalid-email': 'Email inválido. Verifique o formato.',
+      'auth/user-disabled': 'Esta conta foi desabilitada.',
+      'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde.',
+      'auth/popup-closed-by-user': 'Login cancelado pelo usuário.',
+      'auth/popup-blocked': 'Pop-up bloqueado. Permita pop-ups para este site.',
+      'auth/network-request-failed': 'Erro de conexão. Verifique sua internet.',
+      'auth/invalid-credential': 'Credenciais inválidas. Verifique email e senha.'
+    };
 
-    this.loggingService.debug('Email validation', {
-      email: email,
-      isValid: isValid
-    });
-
-    return isValid;
+    const message = errorMessages[error.code] || 'Erro inesperado no login. Tente novamente.';
+    this.toastService.error(message, 'Erro de Login');
   }
 
   /**
-   * Extrai o nome do usuário do email (parte antes do @)
+   * Trata erros específicos de cadastro
    */
-  private extrairNomeDoEmail(email: string): string {
-    const nome = email.split('@')[0];
-    const nomeFormatado = nome.charAt(0).toUpperCase() + nome.slice(1);
+  private tratarErroCadastro(error: any): void {
+    const errorMessages: Record<string, string> = {
+      'auth/email-already-in-use': 'Este email já está em uso. Tente fazer login.',
+      'auth/weak-password': 'A senha deve ter pelo menos 6 caracteres.',
+      'auth/invalid-email': 'Email inválido. Verifique o formato.',
+      'auth/operation-not-allowed': 'Cadastro não permitido. Contate o suporte.',
+      'auth/network-request-failed': 'Erro de conexão. Verifique sua internet.'
+    };
 
-    this.loggingService.debug('Name extracted from email', {
-      email: email,
-      extractedName: nomeFormatado
-    });
-
-    return nomeFormatado;
-  }
-
-  /**
-   * Simula delay de rede
-   */
-  private simularDelay(ms: number): Promise<void> {
-    this.loggingService.debug('Simulating network delay', { delayMs: ms });
-    return new Promise(resolve => setTimeout(resolve, ms));
+    const message = errorMessages[error.code] || 'Erro inesperado no cadastro. Tente novamente.';
+    this.toastService.error(message, 'Erro de Cadastro');
   }
 
   /**
@@ -194,7 +318,8 @@ export class AuthService {
 
     this.loggingService.debug('Session verification', {
       isValid: isValid,
-      userEmail: usuario?.email
+      uid: usuario?.uid,
+      email: usuario?.email
     });
 
     return isValid;
@@ -203,9 +328,10 @@ export class AuthService {
   /**
    * Obtém informações do usuário atual para logging
    */
-  obterContextoUsuario(): { email?: string; nome?: string } {
+  obterContextoUsuario(): { uid?: string; email?: string; nome?: string } {
     const usuario = this.usuarioLogado();
     return {
+      uid: usuario?.uid,
       email: usuario?.email,
       nome: usuario?.nome
     };

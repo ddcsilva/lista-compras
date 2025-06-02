@@ -1,7 +1,7 @@
 import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { LoggingService } from '../../../core/services/logging.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -9,14 +9,14 @@ import { ToastService } from '../../../core/services/toast.service';
 /**
  * Componente standalone para tela de login
  * Utiliza formulário reativo com validações
- * Implementa autenticação fake
+ * Suporte para login com Google e email/senha via Firebase
  * Integrado com sistema de logging e notificações
  * Otimizado com OnPush para melhor performance
  */
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.component.html',
 })
@@ -25,6 +25,7 @@ export class LoginComponent {
 
   // Signals para gerenciar estado do componente
   isCarregando = signal(false);
+  isCarregandoGoogle = signal(false);
   erroLogin = signal<string | null>(null);
   mostrarSenha = signal(false);
 
@@ -45,7 +46,7 @@ export class LoginComponent {
   private criarFormulario(): FormGroup {
     return this.formBuilder.group({
       email: ['', [Validators.required, Validators.email, Validators.maxLength(100)]],
-      senha: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]],
+      senha: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(50)]],
     });
   }
 
@@ -112,7 +113,7 @@ export class LoginComponent {
   }
 
   /**
-   * Submete o formulário de login
+   * Login com email e senha
    */
   async onSubmit(): Promise<void> {
     if (this.loginForm.invalid) {
@@ -127,32 +128,26 @@ export class LoginComponent {
     try {
       const { email, senha } = this.loginForm.value;
 
-      this.loggingService.info('Login form submitted', {
+      this.loggingService.info('Email login form submitted', {
         email: email,
         formValid: this.loginForm.valid,
       });
 
-      const sucesso = await this.authService.login({ email, senha });
+      const sucesso = await this.authService.loginEmailSenha({ email, senha });
 
       if (!sucesso) {
-        const errorMessage = 'Email ou senha inválidos. Tente novamente.';
-        this.erroLogin.set(errorMessage);
-
-        this.toastService.error('Credenciais inválidas. Verifique seus dados e tente novamente.', 'Erro de Login');
-
-        this.loggingService.warn('Login failed in component', {
+        this.erroLogin.set('Falha na autenticação. Verifique suas credenciais.');
+        this.loggingService.warn('Email login failed in component', {
           email: email,
-          reason: 'invalid_credentials',
+          reason: 'authentication_failed',
         });
-      } else {
-        this.toastService.success('Login realizado com sucesso!', 'Bem-vindo');
       }
     } catch (error) {
       const errorMessage = 'Ocorreu um erro inesperado. Tente novamente.';
       this.erroLogin.set(errorMessage);
 
       this.loggingService.logError(error as Error, 'LoginComponent', {
-        action: 'login_submission',
+        action: 'email_login_submission',
         formData: {
           email: this.loginForm.value.email,
           hasPassword: !!this.loginForm.value.senha,
@@ -166,45 +161,36 @@ export class LoginComponent {
   }
 
   /**
+   * Login com Google
+   */
+  async loginComGoogle(): Promise<void> {
+    this.isCarregandoGoogle.set(true);
+
+    try {
+      this.loggingService.info('Google login initiated from component');
+
+      const sucesso = await this.authService.loginGoogle();
+
+      if (!sucesso) {
+        this.loggingService.warn('Google login failed in component');
+      }
+    } catch (error) {
+      this.loggingService.logError(error as Error, 'LoginComponent', {
+        action: 'google_login',
+      });
+
+      this.toastService.error('Erro no login com Google. Tente novamente.', 'Erro do Sistema');
+    } finally {
+      this.isCarregandoGoogle.set(false);
+    }
+  }
+
+  /**
    * Marca todos os campos como tocados para exibir validações
    */
   private marcarCamposComoTocados(): void {
     Object.keys(this.loginForm.controls).forEach(campo => {
       this.loginForm.get(campo)?.markAsTouched();
     });
-  }
-
-  /**
-   * Preenche o formulário com dados de exemplo
-   */
-  preencherExemplo(): void {
-    this.loginForm.patchValue({
-      email: 'usuario@exemplo.com',
-      senha: '123456',
-    });
-
-    this.toastService.info('Formulário preenchido com dados de exemplo');
-    this.loggingService.debug('Form filled with example data');
-  }
-
-  /**
-   * Demonstra o sistema de notificações (para desenvolvimento)
-   */
-  testarNotificacoes(): void {
-    this.toastService.success('Teste de notificação de sucesso!');
-
-    setTimeout(() => {
-      this.toastService.warning('Teste de notificação de aviso!');
-    }, 1000);
-
-    setTimeout(() => {
-      this.toastService.error('Teste de notificação de erro!');
-    }, 2000);
-
-    setTimeout(() => {
-      this.toastService.info('Teste de notificação informativa!');
-    }, 3000);
-
-    this.loggingService.debug('Notification system test triggered');
   }
 }
