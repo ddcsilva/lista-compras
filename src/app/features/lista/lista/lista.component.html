@@ -1,0 +1,279 @@
+<div class="min-h-screen bg-gray-50">
+  <!-- Header -->
+  <header class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <!-- Logo e título -->
+        <div class="flex items-center">
+          <h1 class="text-2xl font-bold text-primary-600">Vai na Lista</h1>
+        </div>
+
+        <!-- Info do usuário e logout -->
+        <div class="flex items-center space-x-4">
+          <span class="text-sm text-gray-600">
+            Olá, <strong>{{ usuario()?.nome }}</strong>
+          </span>
+          <button (click)="logout()" class="text-sm text-gray-500 hover:text-red-600 transition-colors">Sair</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Conteúdo principal -->
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Estatísticas -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+        <div class="flex items-center">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-gray-600">Total de Itens</p>
+            <p class="text-2xl font-bold text-gray-900">{{ totalItens }}</p>
+          </div>
+          <div class="ml-4">
+            <span class="text-3xl">📝</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+        <div class="flex items-center">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-gray-600">Restantes</p>
+            <p class="text-2xl font-bold text-orange-600">{{ itensRestantes }}</p>
+          </div>
+          <div class="ml-4">
+            <span class="text-3xl">⏳</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+        <div class="flex items-center">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-gray-600">Concluídos</p>
+            <p class="text-2xl font-bold text-green-600">{{ itensConcluidos }}</p>
+          </div>
+          <div class="ml-4">
+            <span class="text-3xl">✅</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Formulário para adicionar/editar item -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">
+        {{ modoEdicao() ? 'Editar Item' : 'Adicionar Novo Item' }}
+      </h2>
+
+      <form [formGroup]="formularioItem" (ngSubmit)="onSubmit()" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <!-- Campo Descrição -->
+          <div class="sm:col-span-2">
+            <label for="descricao" class="block text-sm font-medium text-gray-700 mb-1"> Descrição do Item </label>
+            <input
+              id="descricao"
+              type="text"
+              formControlName="descricao"
+              placeholder="Ex: Leite integral, Pão de forma..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
+              [class.border-red-500]="temErro('descricao', 'required') || temErro('descricao', 'minlength')"
+            />
+            @if (obterMensagemErro('descricao')) {
+              <p class="mt-1 text-sm text-red-600">
+                {{ obterMensagemErro('descricao') }}
+              </p>
+            }
+          </div>
+
+          <!-- Campo Quantidade -->
+          <div>
+            <label for="quantidade" class="block text-sm font-medium text-gray-700 mb-1"> Quantidade </label>
+            <input
+              id="quantidade"
+              type="number"
+              min="1"
+              max="999"
+              formControlName="quantidade"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
+              [class.border-red-500]="temErro('quantidade', 'required') || temErro('quantidade', 'min')"
+            />
+            @if (obterMensagemErro('quantidade')) {
+              <p class="mt-1 text-sm text-red-600">
+                {{ obterMensagemErro('quantidade') }}
+              </p>
+            }
+          </div>
+        </div>
+
+        <!-- Botões do formulário -->
+        <div class="flex gap-3">
+          <button
+            type="submit"
+            [disabled]="isCarregando()"
+            class="flex-1 sm:flex-none px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 font-medium transition-colors disabled:opacity-50"
+          >
+            @if (isCarregando()) {
+              <span class="flex items-center justify-center">
+                <svg class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Salvando...
+              </span>
+            } @else {
+              {{ modoEdicao() ? 'Salvar Edição' : 'Adicionar Item' }}
+            }
+          </button>
+
+          @if (modoEdicao()) {
+            <button
+              type="button"
+              (click)="cancelarEdicao()"
+              class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+            >
+              Cancelar
+            </button>
+          }
+        </div>
+      </form>
+    </div>
+
+    <!-- Controles da lista -->
+    @if (totalItens > 0) {
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <!-- Filtro de visualização -->
+          <div class="flex items-center space-x-2">
+            <label class="flex items-center">
+              <input
+                type="checkbox"
+                [checked]="mostrarConcluidos()"
+                (change)="alternarVisualizacaoConcluidos()"
+                class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+              />
+              <span class="ml-2 text-sm text-gray-700"> Mostrar itens concluídos </span>
+            </label>
+          </div>
+
+          <!-- Ações da lista -->
+          <div class="flex gap-2">
+            @if (itensConcluidos > 0) {
+              <button
+                (click)="limparConcluidos()"
+                class="px-3 py-1.5 text-sm bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
+              >
+                Limpar Concluídos ({{ itensConcluidos }})
+              </button>
+            }
+
+            <button
+              (click)="limparTodaLista()"
+              class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+            >
+              Limpar Tudo
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Lista de itens -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+      @if (itensVisiveis.length === 0) {
+        <!-- Estado vazio -->
+        <div class="p-12 text-center">
+          @if (totalItens === 0) {
+            <div class="text-gray-400 mb-4">
+              <span class="text-6xl">📋</span>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">Sua lista está vazia</h3>
+            <p class="text-gray-600">Adicione seu primeiro item usando o formulário acima.</p>
+          } @else {
+            <div class="text-gray-400 mb-4">
+              <span class="text-6xl">✅</span>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">Todos os itens estão concluídos!</h3>
+            <p class="text-gray-600">Marque "Mostrar itens concluídos" para vê-los.</p>
+          }
+        </div>
+      } @else {
+        <!-- Lista de itens -->
+        <div class="divide-y divide-gray-200">
+          @for (item of itensVisiveis; track item.id) {
+            <div class="p-4 hover:bg-gray-50 transition-colors" [class.opacity-60]="item.concluido">
+              <div class="flex items-center justify-between">
+                <!-- Checkbox e conteúdo do item -->
+                <div class="flex items-center flex-1 min-w-0">
+                  <input
+                    type="checkbox"
+                    [checked]="item.concluido"
+                    (change)="alterarStatusItem(item)"
+                    class="h-5 w-5 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mr-4"
+                  />
+
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-3">
+                      <span class="text-gray-900 font-medium" [class.line-through]="item.concluido">
+                        {{ item.descricao }}
+                      </span>
+
+                      <span
+                        class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
+                      >
+                        {{ item.quantidade }}x
+                      </span>
+                    </div>
+
+                    <p class="text-xs text-gray-500 mt-1">
+                      Atualizado em {{ item.dataAtualizacao | date: 'dd/MM/yyyy HH:mm' }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Ações do item -->
+                <div class="flex items-center gap-2 ml-4">
+                  @if (!item.concluido && modoEdicao() !== item.id) {
+                    <button
+                      (click)="editarItem(item)"
+                      class="p-2 text-gray-400 hover:text-primary-600 transition-colors"
+                      title="Editar item"
+                    >
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        ></path>
+                      </svg>
+                    </button>
+                  }
+
+                  <button
+                    (click)="removerItem(item)"
+                    class="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                    title="Remover item"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      ></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </main>
+</div>
