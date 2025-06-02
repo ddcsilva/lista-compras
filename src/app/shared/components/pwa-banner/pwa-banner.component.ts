@@ -13,7 +13,9 @@ import { PwaService } from '../../../core/services/pwa.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (shouldShowBanner()) {
-      <div class="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg p-4 z-50 transform transition-all duration-300">
+      <div
+        class="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg p-4 z-50 transform transition-all duration-300"
+      >
         <div class="flex items-start justify-between">
           <div class="flex-1">
             <div class="flex items-center mb-2">
@@ -40,10 +42,7 @@ import { PwaService } from '../../../core/services/pwa.service';
               </button>
             </div>
           </div>
-          <button
-            (click)="dismiss()"
-            class="ml-2 text-blue-200 hover:text-white transition-colors"
-          >
+          <button (click)="dismiss()" class="ml-2 text-blue-200 hover:text-white transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -51,16 +50,14 @@ import { PwaService } from '../../../core/services/pwa.service';
         </div>
       </div>
     }
-  `
+  `,
 })
 export class PwaBannerComponent {
   private isDismissed = false;
 
   // Computed para determinar se deve mostrar o banner
   readonly shouldShowBanner = computed(() => {
-    return this.pwaService.isInstallable$ &&
-           !this.pwaService.isInstalled$ &&
-           !this.isDismissed;
+    return this.pwaService.isInstallable$ && !this.pwaService.isInstalled$ && !this.isDismissed;
   });
 
   constructor(private pwaService: PwaService) {}
