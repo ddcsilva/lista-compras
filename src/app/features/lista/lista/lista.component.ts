@@ -2,14 +2,15 @@ import { Component, signal, computed, ChangeDetectionStrategy, OnDestroy, Change
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AuthService } from '../../../core/services/auth.service';
-import { FirestoreService, ItemLista } from '../../../core/services/firestore.service';
+import { ListaService } from '../../../core/services/lista.service';
 import { LoggingService } from '../../../core/services/logging.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { Lista, ItemLista, NovoItemLista, EdicaoItemLista } from '../../../shared/models/item-lista.model';
 import { Subscription } from 'rxjs';
 
 /**
- * Componente standalone para gerenciar a lista de compras
- * Implementa CRUD de itens com Firestore + backup offline
+ * Componente standalone para gerenciar listas de compras
+ * Refatorado para usar a nova arquitetura com itens embutidos
  * Otimizado com computed signals e OnPush para máxima performance
  */
 @Component({
@@ -21,49 +22,57 @@ import { Subscription } from 'rxjs';
 })
 export class ListaComponent implements OnDestroy {
   formularioItem: FormGroup;
+  formularioLista: FormGroup;
 
   // Signals para gerenciar estado do componente
-  private itensFirestore = signal<ItemLista[]>([]);
+  private listaAtual = signal<Lista | null>(null);
+  private listasUsuario = signal<Lista[]>([]);
   modoEdicao = signal<string | null>(null);
+  modoEdicaoLista = signal(false);
   isCarregando = signal(false);
   mostrarConcluidos = signal(true);
   erroCarregamento = signal<string | null>(null);
   tentativaReconexao = signal(false);
   isOnline = signal(navigator.onLine);
+  mostrarSeletorListas = signal(false);
 
   // Subscriptions
   private subscriptions: Subscription[] = [];
 
   // Computed signals para melhor performance (cached e reativo)
   readonly usuario = computed(() => this.authService.usuario());
-  readonly itens = computed(() => this.itensFirestore());
+  readonly lista = computed(() => this.listaAtual());
+  readonly listas = computed(() => this.listasUsuario());
+  readonly itens = computed(() => this.lista()?.itens || []);
   readonly totalItens = computed(() => this.itens().length);
   readonly itensConcluidos = computed(() => this.itens().filter(item => item.concluido).length);
   readonly itensRestantes = computed(() => this.itens().filter(item => !item.concluido).length);
+  readonly estatisticas = computed(() => this.listaService.obterEstatisticas());
 
   // Computed para filtrar itens baseado na preferência de visualização
   readonly itensVisiveis = computed(() => {
     const todosItens = this.itens();
     if (this.mostrarConcluidos()) {
-      return todosItens;
+      return todosItens.sort((a, b) => a.ordem - b.ordem);
     }
-    return todosItens.filter(item => !item.concluido);
+    return todosItens.filter(item => !item.concluido).sort((a, b) => a.ordem - b.ordem);
   });
 
   constructor(
     private formBuilder: FormBuilder,
     private authService: AuthService,
-    private firestoreService: FirestoreService,
+    private listaService: ListaService,
     private loggingService: LoggingService,
     private toastService: ToastService,
     private cdr: ChangeDetectorRef
   ) {
-    this.formularioItem = this.criarFormulario();
+    this.formularioItem = this.criarFormularioItem();
+    this.formularioLista = this.criarFormularioLista();
     this.inicializarComponente();
   }
 
   /**
-   * Inicializa o componente com sincronização Firestore
+   * Inicializa o componente com sincronização do ListaService
    */
   private async inicializarComponente(): Promise<void> {
     try {
@@ -71,16 +80,27 @@ export class ListaComponent implements OnDestroy {
         userId: this.usuario()?.email,
       });
 
-      // Subscreve aos itens do Firestore
-      const itensSubscription = this.firestoreService.itens$.subscribe(itens => {
-        this.itensFirestore.set(itens);
-        this.loggingService.debug('Itens updated from Firestore', { count: itens.length });
-        // Força detecção de mudanças
+      // Subscreve à lista atual
+      const listaAtualSubscription = this.listaService.listaAtual$.subscribe(lista => {
+        this.listaAtual.set(lista);
+        this.loggingService.debug('Lista atual updated', {
+          listaId: lista?.id,
+          itensCount: lista?.itens?.length || 0,
+        });
+        this.cdr.markForCheck();
+      });
+
+      // Subscreve às listas do usuário
+      const listasUsuarioSubscription = this.listaService.listasUsuario$.subscribe(listas => {
+        this.listasUsuario.set(listas);
+        this.loggingService.debug('Listas do usuário updated', {
+          listasCount: listas.length,
+        });
         this.cdr.markForCheck();
       });
 
       // Subscreve ao status online/offline
-      const onlineSubscription = this.firestoreService.isOnline$.subscribe(isOnline => {
+      const onlineSubscription = this.listaService.isOnline$.subscribe(isOnline => {
         this.isOnline.set(isOnline);
         this.cdr.markForCheck();
       });
@@ -94,73 +114,154 @@ export class ListaComponent implements OnDestroy {
         this.cdr.markForCheck();
       });
 
-      this.subscriptions.push(itensSubscription, onlineSubscription, userSubscription);
+      this.subscriptions.push(listaAtualSubscription, listasUsuarioSubscription, onlineSubscription, userSubscription);
+
       this.erroCarregamento.set(null);
     } catch (error) {
       this.handleComponentError(error, 'inicializar o componente');
     }
   }
 
+  // ==========================================
+  // MÉTODOS DE FORMULÁRIOS
+  // ==========================================
+
   /**
    * Cria o formulário para adicionar/editar itens
    */
-  private criarFormulario(): FormGroup {
+  private criarFormularioItem(): FormGroup {
     return this.formBuilder.group({
-      descricao: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
+      nome: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
+      categoria: ['Geral'],
       quantidade: [1, [Validators.required, Validators.min(1), Validators.max(999)]],
     });
   }
 
   /**
-   * Submete o formulário para adicionar ou editar item
+   * Cria o formulário para criar/editar listas
    */
-  async onSubmit(): Promise<void> {
-    if (this.formularioItem.invalid) {
-      this.marcarCamposComoTocados();
+  private criarFormularioLista(): FormGroup {
+    return this.formBuilder.group({
+      nome: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(50)]],
+      categoria: ['Compras'],
+      cor: ['#3B82F6'],
+    });
+  }
+
+  // ==========================================
+  // MÉTODOS DE GESTÃO DE LISTAS
+  // ==========================================
+
+  /**
+   * Cria uma nova lista
+   */
+  async criarLista(): Promise<void> {
+    if (this.formularioLista.invalid) {
+      this.marcarCamposComoTocados(this.formularioLista);
       return;
     }
 
     this.isCarregando.set(true);
 
     try {
-      const { descricao, quantidade } = this.formularioItem.value;
+      const { nome, categoria, cor } = this.formularioLista.value;
+      const novaLista = await this.listaService.criarLista({ nome, categoria, cor });
+
+      if (novaLista) {
+        this.formularioLista.reset({ categoria: 'Compras', cor: '#3B82F6' });
+        this.modoEdicaoLista.set(false);
+        this.loggingService.info('Lista created successfully', { listaId: novaLista.id });
+      }
+    } catch (error) {
+      this.handleComponentError(error, 'criar lista');
+    } finally {
+      this.isCarregando.set(false);
+    }
+  }
+
+  /**
+   * Seleciona uma lista diferente
+   */
+  selecionarLista(listaId: string): void {
+    this.listaService.selecionarLista(listaId);
+    this.mostrarSeletorListas.set(false);
+    this.loggingService.info('Lista selected from component', { listaId });
+  }
+
+  /**
+   * Alterna o modo de edição da lista
+   */
+  alternarModoEdicaoLista(): void {
+    this.modoEdicaoLista.update(modo => !modo);
+
+    if (this.modoEdicaoLista()) {
+      const lista = this.lista();
+      if (lista) {
+        this.formularioLista.patchValue({
+          nome: lista.nome,
+          categoria: lista.categoria,
+          cor: lista.cor || '#3B82F6',
+        });
+      }
+    } else {
+      this.formularioLista.reset({ categoria: 'Compras', cor: '#3B82F6' });
+    }
+  }
+
+  // ==========================================
+  // MÉTODOS DE GESTÃO DE ITENS
+  // ==========================================
+
+  /**
+   * Submete o formulário para adicionar ou editar item
+   */
+  async onSubmit(): Promise<void> {
+    if (this.formularioItem.invalid) {
+      this.marcarCamposComoTocados(this.formularioItem);
+      return;
+    }
+
+    if (!this.lista()) {
+      this.toastService.error('Nenhuma lista selecionada');
+      return;
+    }
+
+    this.isCarregando.set(true);
+
+    try {
+      const { nome, categoria, quantidade } = this.formularioItem.value;
 
       if (this.modoEdicao()) {
         // Modo edição
-        const itemAtual = this.itens().find(item => item.id === this.modoEdicao());
-        if (itemAtual) {
-          const itemAtualizado: ItemLista = {
-            ...itemAtual,
-            descricao,
-            quantidade,
-            atualizadoEm: new Date(),
-          };
+        const edicao: EdicaoItemLista = {
+          nome: nome.trim(),
+          categoria,
+          quantidade,
+        };
 
-          const sucesso = await this.firestoreService.atualizarItem(itemAtualizado);
-          if (sucesso) {
-            this.toastService.success('Item editado com sucesso!');
-            this.loggingService.info('Item edited', {
-              itemId: this.modoEdicao(),
-              descricao,
-            });
-            this.cancelarEdicao();
-          } else {
-            throw new Error('Falha ao editar item');
-          }
+        const sucesso = await this.listaService.atualizarItem(this.modoEdicao()!, edicao);
+        if (sucesso) {
+          this.loggingService.info('Item edited', {
+            itemId: this.modoEdicao(),
+            nome,
+          });
+          this.cancelarEdicao();
         }
       } else {
         // Modo criação
-        const itemCriado = await this.firestoreService.adicionarItem(descricao, quantidade);
+        const novoItem: NovoItemLista = {
+          nome: nome.trim(),
+          categoria,
+          quantidade,
+        };
+
+        const itemCriado = await this.listaService.adicionarItem(novoItem);
         if (itemCriado) {
-          this.toastService.success('Item adicionado com sucesso!');
           this.loggingService.info('Item created', {
             itemId: itemCriado.id,
-            descricao,
+            nome,
           });
-
-          this.formularioItem.reset({ quantidade: 1 });
-        } else {
-          throw new Error('Falha ao adicionar item');
+          this.formularioItem.reset({ categoria: 'Geral', quantidade: 1 });
         }
       }
     } catch (error) {
@@ -177,7 +278,8 @@ export class ListaComponent implements OnDestroy {
     try {
       this.modoEdicao.set(item.id!);
       this.formularioItem.patchValue({
-        descricao: item.descricao,
+        nome: item.nome,
+        categoria: item.categoria,
         quantidade: item.quantidade,
       });
 
@@ -192,7 +294,7 @@ export class ListaComponent implements OnDestroy {
    */
   cancelarEdicao(): void {
     this.modoEdicao.set(null);
-    this.formularioItem.reset({ quantidade: 1 });
+    this.formularioItem.reset({ categoria: 'Geral', quantidade: 1 });
     this.loggingService.debug('Edit mode cancelled');
   }
 
@@ -200,17 +302,14 @@ export class ListaComponent implements OnDestroy {
    * Remove um item da lista
    */
   async removerItem(item: ItemLista): Promise<void> {
-    if (confirm(`Deseja realmente remover "${item.descricao}"?`)) {
+    if (confirm(`Deseja realmente remover "${item.nome}"?`)) {
       try {
-        const sucesso = await this.firestoreService.removerItem(item.id!);
+        const sucesso = await this.listaService.removerItem(item.id);
         if (sucesso) {
-          this.toastService.success('Item removido com sucesso!');
           this.loggingService.info('Item removed', {
             itemId: item.id,
-            descricao: item.descricao,
+            nome: item.nome,
           });
-        } else {
-          throw new Error('Falha ao remover item');
         }
       } catch (error) {
         this.handleComponentError(error, 'remover o item');
@@ -223,23 +322,19 @@ export class ListaComponent implements OnDestroy {
    */
   async alterarStatusItem(item: ItemLista): Promise<void> {
     try {
-      const itemAtualizado: ItemLista = {
-        ...item,
+      const edicao: EdicaoItemLista = {
         concluido: !item.concluido,
-        atualizadoEm: new Date(),
       };
 
-      const sucesso = await this.firestoreService.atualizarItem(itemAtualizado);
+      const sucesso = await this.listaService.atualizarItem(item.id, edicao);
 
       if (sucesso) {
-        const acao = itemAtualizado.concluido ? 'concluído' : 'reaberto';
+        const acao = !item.concluido ? 'concluído' : 'reaberto';
         this.toastService.info(`Item ${acao}!`);
         this.loggingService.info('Item status changed', {
           itemId: item.id,
-          concluido: itemAtualizado.concluido,
+          concluido: !item.concluido,
         });
-      } else {
-        throw new Error('Falha ao alterar status do item');
       }
     } catch (error) {
       this.handleComponentError(error, 'alterar status do item');
@@ -269,7 +364,7 @@ export class ListaComponent implements OnDestroy {
     if (confirm(`Deseja remover ${totalConcluidos} itens concluídos?`)) {
       try {
         this.isCarregando.set(true);
-        const sucesso = await this.firestoreService.removerItensConcluidos();
+        const sucesso = await this.listaService.removerItensConcluidos();
 
         if (sucesso) {
           this.loggingService.info('Completed items cleared', { count: totalConcluidos });
@@ -283,9 +378,15 @@ export class ListaComponent implements OnDestroy {
   }
 
   /**
-   * Limpa toda a lista
+   * Limpa toda a lista (remove todos os itens)
    */
   async limparTodaLista(): Promise<void> {
+    const lista = this.lista();
+    if (!lista) {
+      this.toastService.error('Nenhuma lista selecionada');
+      return;
+    }
+
     const total = this.totalItens();
 
     if (total === 0) {
@@ -293,12 +394,12 @@ export class ListaComponent implements OnDestroy {
       return;
     }
 
-    if (confirm(`Deseja realmente remover todos os ${total} itens da lista?`)) {
+    if (confirm(`Deseja realmente remover todos os ${total} itens da lista "${lista.nome}"?`)) {
       try {
         this.isCarregando.set(true);
-        const promises = this.itens().map(item =>
-          item.id ? this.firestoreService.removerItem(item.id) : Promise.resolve(false)
-        );
+
+        // Remove todos os itens individualmente para manter histórico
+        const promises = this.itens().map(item => this.listaService.removerItem(item.id));
 
         const resultados = await Promise.all(promises);
         const sucessos = resultados.filter(Boolean).length;
@@ -316,6 +417,61 @@ export class ListaComponent implements OnDestroy {
         this.isCarregando.set(false);
       }
     }
+  }
+
+  /**
+   * Arquiva a lista atual
+   */
+  async arquivarLista(): Promise<void> {
+    const lista = this.lista();
+    if (!lista?.id) {
+      this.toastService.error('Nenhuma lista selecionada');
+      return;
+    }
+
+    if (confirm(`Deseja arquivar a lista "${lista.nome}"?`)) {
+      try {
+        const sucesso = await this.listaService.arquivarLista(lista.id);
+        if (sucesso) {
+          this.loggingService.info('Lista archived', { listaId: lista.id });
+        }
+      } catch (error) {
+        this.handleComponentError(error, 'arquivar lista');
+      }
+    }
+  }
+
+  /**
+   * Remove permanentemente a lista atual
+   */
+  async removerLista(): Promise<void> {
+    const lista = this.lista();
+    if (!lista?.id) {
+      this.toastService.error('Nenhuma lista selecionada');
+      return;
+    }
+
+    if (confirm(`Deseja PERMANENTEMENTE remover a lista "${lista.nome}"? Esta ação não pode ser desfeita!`)) {
+      try {
+        const sucesso = await this.listaService.removerLista(lista.id);
+        if (sucesso) {
+          this.loggingService.info('Lista deleted', { listaId: lista.id });
+        }
+      } catch (error) {
+        this.handleComponentError(error, 'remover lista');
+      }
+    }
+  }
+
+  // ==========================================
+  // MÉTODOS DE INTERFACE E NAVEGAÇÃO
+  // ==========================================
+
+  /**
+   * Alterna a visibilidade do seletor de listas
+   */
+  alternarSeletorListas(): void {
+    this.mostrarSeletorListas.update(valor => !valor);
   }
 
   /**
@@ -350,6 +506,10 @@ export class ListaComponent implements OnDestroy {
     }
   }
 
+  // ==========================================
+  // MÉTODOS AUXILIARES E VALIDAÇÃO
+  // ==========================================
+
   /**
    * Trata erros do componente de forma centralizada
    */
@@ -359,6 +519,7 @@ export class ListaComponent implements OnDestroy {
     this.loggingService.logError(error as Error, 'ListaComponent', {
       action,
       userId: this.usuario()?.email,
+      listaId: this.lista()?.id,
       itemCount: this.totalItens(),
     });
 
@@ -369,16 +530,18 @@ export class ListaComponent implements OnDestroy {
   /**
    * Verifica se um campo do formulário tem erro específico
    */
-  temErro(campo: string, tipoErro: string): boolean {
-    const control = this.formularioItem.get(campo);
+  temErro(campo: string, tipoErro: string, formGroup?: FormGroup): boolean {
+    const form = formGroup || this.formularioItem;
+    const control = form.get(campo);
     return !!(control && control.errors?.[tipoErro] && control.touched);
   }
 
   /**
    * Obtém a mensagem de erro para um campo
    */
-  obterMensagemErro(campo: string): string {
-    const control = this.formularioItem.get(campo);
+  obterMensagemErro(campo: string, formGroup?: FormGroup): string {
+    const form = formGroup || this.formularioItem;
+    const control = form.get(campo);
 
     if (!control || !control.errors || !control.touched) {
       return '';
@@ -418,7 +581,8 @@ export class ListaComponent implements OnDestroy {
    */
   private obterLabelCampo(campo: string): string {
     const labels: Record<string, string> = {
-      descricao: 'Descrição',
+      nome: 'Nome',
+      categoria: 'Categoria',
       quantidade: 'Quantidade',
     };
     return labels[campo] || campo;
@@ -427,9 +591,9 @@ export class ListaComponent implements OnDestroy {
   /**
    * Marca todos os campos como tocados para exibir validações
    */
-  private marcarCamposComoTocados(): void {
-    Object.keys(this.formularioItem.controls).forEach(campo => {
-      this.formularioItem.get(campo)?.markAsTouched();
+  private marcarCamposComoTocados(formGroup: FormGroup): void {
+    Object.keys(formGroup.controls).forEach(campo => {
+      formGroup.get(campo)?.markAsTouched();
     });
   }
 
