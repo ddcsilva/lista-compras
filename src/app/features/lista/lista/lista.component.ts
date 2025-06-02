@@ -5,6 +5,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ListaService } from '../../../core/services/lista.service';
 import { LoggingService } from '../../../core/services/logging.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { PwaService } from '../../../core/services/pwa.service';
 import { Lista, ItemLista, NovoItemLista, EdicaoItemLista } from '../../../shared/models/item-lista.model';
 import { Subscription } from 'rxjs';
 
@@ -12,6 +13,7 @@ import { Subscription } from 'rxjs';
  * Componente standalone para gerenciar listas de compras
  * Refatorado para usar a nova arquitetura com itens embutidos
  * Otimizado com computed signals e OnPush para máxima performance
+ * Integrado com PWA para funcionalidades offline e instalação
  */
 @Component({
   selector: 'app-lista',
@@ -35,6 +37,12 @@ export class ListaComponent implements OnDestroy {
   tentativaReconexao = signal(false);
   isOnline = signal(navigator.onLine);
   mostrarSeletorListas = signal(false);
+  mostrarMenuPWA = signal(false);
+
+  // PWA Signals
+  isInstallable = signal(false);
+  isInstalled = signal(false);
+  hasUpdate = signal(false);
 
   // Subscriptions
   private subscriptions: Subscription[] = [];
@@ -64,11 +72,13 @@ export class ListaComponent implements OnDestroy {
     private listaService: ListaService,
     private loggingService: LoggingService,
     private toastService: ToastService,
+    private pwaService: PwaService,
     private cdr: ChangeDetectorRef
   ) {
     this.formularioItem = this.criarFormularioItem();
     this.formularioLista = this.criarFormularioLista();
     this.inicializarComponente();
+    this.inicializarPWA();
   }
 
   /**
@@ -595,6 +605,94 @@ export class ListaComponent implements OnDestroy {
     Object.keys(formGroup.controls).forEach(campo => {
       formGroup.get(campo)?.markAsTouched();
     });
+  }
+
+  // ==========================================
+  // MÉTODOS PWA
+  // ==========================================
+
+  /**
+   * Inicializa funcionalidades PWA
+   */
+  private inicializarPWA(): void {
+    // Subscreve aos observables do PWA service
+    const installableSubscription = this.pwaService.isInstallable$.subscribe(isInstallable => {
+      this.isInstallable.set(isInstallable);
+      this.cdr.markForCheck();
+    });
+
+    const installedSubscription = this.pwaService.isInstalled$.subscribe(isInstalled => {
+      this.isInstalled.set(isInstalled);
+      this.cdr.markForCheck();
+    });
+
+    const updateSubscription = this.pwaService.hasUpdate$.subscribe(hasUpdate => {
+      this.hasUpdate.set(hasUpdate);
+      this.cdr.markForCheck();
+    });
+
+    this.subscriptions.push(installableSubscription, installedSubscription, updateSubscription);
+  }
+
+  /**
+   * Instala o app como PWA
+   */
+  async instalarApp(): Promise<void> {
+    try {
+      const sucesso = await this.pwaService.showInstallPrompt();
+      if (sucesso) {
+        this.loggingService.info('PWA installation prompt accepted');
+      }
+    } catch (error) {
+      this.loggingService.error('Failed to show install prompt', { error });
+      this.toastService.error('Não foi possível instalar o app', 'Erro na Instalação');
+    }
+  }
+
+  /**
+   * Aplica atualização disponível
+   */
+  async atualizarApp(): Promise<void> {
+    await this.pwaService.applyUpdate();
+  }
+
+  /**
+   * Verifica manualmente por atualizações
+   */
+  async verificarAtualizacoes(): Promise<void> {
+    try {
+      const hasUpdate = await this.pwaService.checkForUpdate();
+      if (!hasUpdate) {
+        this.toastService.info('Você já está usando a versão mais recente', 'App Atualizado');
+      }
+    } catch (error) {
+      this.loggingService.error('Manual update check failed', { error });
+    }
+  }
+
+  /**
+   * Obtém informações do cache
+   */
+  async obterInfoCache(): Promise<void> {
+    try {
+      const cacheInfo = await this.pwaService.getCacheInfo();
+      const totalItens = cacheInfo.reduce((total, cache) => total + cache.size, 0);
+
+      this.toastService.info(`${cacheInfo.length} caches ativos com ${totalItens} itens`, 'Informações do Cache', 5000);
+
+      this.loggingService.info('Cache info retrieved', { cacheInfo });
+    } catch (error) {
+      this.loggingService.error('Failed to get cache info', { error });
+    }
+  }
+
+  /**
+   * Limpa cache do app
+   */
+  async limparCache(): Promise<void> {
+    if (confirm('Deseja limpar o cache do aplicativo? Isso pode afetar a performance offline.')) {
+      await this.pwaService.clearCache();
+    }
   }
 
   /**
