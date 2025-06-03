@@ -11,10 +11,12 @@ import {
   User,
   AuthError,
 } from 'firebase/auth';
-import { auth } from '../config/firebase.config';
+import { doc, setDoc, getDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../config/firebase.config';
 import { StorageService } from './storage.service';
 import { LoggingService } from './logging.service';
 import { ToastService } from './toast.service';
+import { UsuarioBasico } from '../../shared/models/usuario.model';
 import { Observable } from 'rxjs';
 
 export interface Usuario {
@@ -38,15 +40,16 @@ export interface CadastroData {
 
 /**
  * Serviço de autenticação com Firebase
- * Gerencia o estado de autenticação do usuário usando signals
- * Suporte para login com Google e email/senha
- * Otimizado com computed signals para melhor performance
+ * ESTENDIDO para criar automaticamente documentos na coleção 'usuarios'
+ * Sincroniza dados entre Firebase Auth e Firestore
+ * Garante que todos usuários podem ser encontrados via busca por email
  */
 @Injectable({
   providedIn: 'root',
 })
 export class AuthService {
   private readonly STORAGE_KEY = 'vai-na-lista-usuario';
+  private readonly COLLECTION_USUARIOS = 'usuarios';
   private googleProvider = new GoogleAuthProvider();
 
   // Signal para gerenciar o estado do usuário autenticado
@@ -95,12 +98,16 @@ export class AuthService {
 
   /**
    * Inicializa o listener de autenticação do Firebase
+   * ESTENDIDO para criar/atualizar documento do usuário no Firestore
    */
   private inicializarAuth(): void {
-    onAuthStateChanged(auth, firebaseUser => {
+    onAuthStateChanged(auth, async firebaseUser => {
       this.carregandoAuth.set(false);
 
       if (firebaseUser) {
+        // NOVO: Criar/atualizar documento no Firestore
+        await this.criarOuAtualizarUsuarioFirestore(firebaseUser);
+
         const usuario = this.mapearUsuarioFirebase(firebaseUser);
         this.usuarioLogado.set(usuario);
         this.storageService.setItem(this.STORAGE_KEY, usuario);
@@ -109,6 +116,70 @@ export class AuthService {
         this.storageService.removeItem(this.STORAGE_KEY);
       }
     });
+  }
+
+  /**
+   * NOVO: Cria ou atualiza documento do usuário no Firestore
+   * Garante que usuário pode ser encontrado via busca por email
+   */
+  private async criarOuAtualizarUsuarioFirestore(firebaseUser: User): Promise<void> {
+    try {
+      const userDocRef = doc(db, this.COLLECTION_USUARIOS, firebaseUser.uid);
+
+      // Verifica se documento já existe
+      const userDocSnap = await getDoc(userDocRef);
+
+      // Prepara dados do usuário
+      const dadosUsuario: Omit<UsuarioBasico, 'uid'> & {
+        provider: string;
+        atualizadoEm: any;
+        criadoEm?: any;
+      } = {
+        email: firebaseUser.email || '',
+        nome: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Usuário',
+        photoURL: firebaseUser.photoURL || undefined,
+        provider: firebaseUser.providerData[0]?.providerId || 'password',
+        atualizadoEm: serverTimestamp(),
+      };
+
+      if (userDocSnap.exists()) {
+        // ATUALIZAR: Documento existe, atualizar dados
+        await setDoc(userDocRef, dadosUsuario, { merge: true });
+
+        this.loggingService.info('Documento do usuário atualizado no Firestore', {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          existiaAntes: true,
+        });
+      } else {
+        // CRIAR: Documento não existe, criar novo
+        await setDoc(userDocRef, {
+          ...dadosUsuario,
+          criadoEm: serverTimestamp(),
+        });
+
+        this.loggingService.info('Novo documento criado no Firestore', {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          nome: dadosUsuario.nome,
+          provider: dadosUsuario.provider,
+        });
+
+        // Toast de boas-vindas para novos usuários
+        this.toastService.success(`Perfil criado com sucesso! Bem-vindo, ${dadosUsuario.nome}!`, 'Conta Configurada');
+      }
+    } catch (error: unknown) {
+      // IMPORTANTE: Erro na criação do documento NÃO deve impedir o login
+      this.loggingService.error('Erro ao criar/atualizar documento do usuário no Firestore', {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        error: (error as Error).message,
+      });
+
+      // Não mostra toast de erro para não assustar o usuário
+      // O login continua funcionando mesmo se o Firestore falhar
+      console.warn('⚠️ Firestore sync failed, but login will continue:', error);
+    }
   }
 
   /**
@@ -126,6 +197,7 @@ export class AuthService {
 
   /**
    * Login com email e senha
+   * ESTENDIDO para sincronizar dados com Firestore
    */
   async loginEmailSenha(loginData: LoginData): Promise<boolean> {
     const startTime = Date.now();
@@ -137,12 +209,15 @@ export class AuthService {
 
       const userCredential = await signInWithEmailAndPassword(auth, loginData.email, loginData.senha);
 
+      // NOVO: Dados já são sincronizados automaticamente via onAuthStateChanged
+
       const duration = Date.now() - startTime;
 
       this.loggingService.info('Email login successful', {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         duration: `${duration}ms`,
+        firestoreSync: true,
       });
 
       this.toastService.success('Login realizado com sucesso!', 'Bem-vindo');
@@ -165,6 +240,7 @@ export class AuthService {
 
   /**
    * Login com Google
+   * ESTENDIDO para sincronizar dados com Firestore
    */
   async loginGoogle(): Promise<boolean> {
     const startTime = Date.now();
@@ -174,12 +250,15 @@ export class AuthService {
 
       const userCredential = await signInWithPopup(auth, this.googleProvider);
 
+      // NOVO: Dados já são sincronizados automaticamente via onAuthStateChanged
+
       const duration = Date.now() - startTime;
 
       this.loggingService.info('Google login successful', {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         duration: `${duration}ms`,
+        firestoreSync: true,
       });
 
       this.toastService.success(`Bem-vindo, ${userCredential.user.displayName}!`, 'Login Google');
@@ -202,6 +281,7 @@ export class AuthService {
 
   /**
    * Cadastro com email e senha
+   * ESTENDIDO para criar documento no Firestore automaticamente
    */
   async cadastrar(cadastroData: CadastroData): Promise<boolean> {
     const startTime = Date.now();
@@ -212,13 +292,16 @@ export class AuthService {
         nome: cadastroData.nome,
       });
 
-      // Cria usuário
+      // Cria usuário no Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, cadastroData.email, cadastroData.senha);
 
       // Atualiza perfil com nome
       await updateProfile(userCredential.user, {
         displayName: cadastroData.nome,
       });
+
+      // NOVO: Documento no Firestore é criado automaticamente via onAuthStateChanged
+      // que detecta a mudança e chama criarOuAtualizarUsuarioFirestore()
 
       const duration = Date.now() - startTime;
 
@@ -227,6 +310,7 @@ export class AuthService {
         email: userCredential.user.email,
         nome: cadastroData.nome,
         duration: `${duration}ms`,
+        firestoreSync: true,
       });
 
       this.toastService.success(`Conta criada com sucesso! Bem-vindo, ${cadastroData.nome}!`, 'Cadastro Realizado');
@@ -273,6 +357,64 @@ export class AuthService {
       });
 
       this.toastService.error('Erro ao fazer logout. Tente novamente.');
+    }
+  }
+
+  /**
+   * NOVO: Força sincronização do usuário atual com Firestore
+   * Útil para casos onde o documento foi perdido ou corrompido
+   */
+  async forcarSincronizacaoFirestore(): Promise<boolean> {
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+      this.loggingService.warn('Tentativa de sincronização sem usuário logado');
+      return false;
+    }
+
+    try {
+      await this.criarOuAtualizarUsuarioFirestore(currentUser);
+      this.toastService.success('Dados sincronizados com sucesso!', 'Sincronização');
+      return true;
+    } catch (error: unknown) {
+      this.loggingService.error('Erro na sincronização forçada', {
+        uid: currentUser.uid,
+        error: (error as Error).message,
+      });
+      this.toastService.error('Erro na sincronização dos dados', 'Erro');
+      return false;
+    }
+  }
+
+  /**
+   * NOVO: Verifica se documento do usuário existe no Firestore
+   * Útil para debugging e validação
+   */
+  async verificarDocumentoFirestore(): Promise<{ existe: boolean; dados?: any }> {
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+      return { existe: false };
+    }
+
+    try {
+      const userDocRef = doc(db, this.COLLECTION_USUARIOS, currentUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (userDocSnap.exists()) {
+        return {
+          existe: true,
+          dados: userDocSnap.data(),
+        };
+      } else {
+        return { existe: false };
+      }
+    } catch (error: unknown) {
+      this.loggingService.error('Erro ao verificar documento no Firestore', {
+        uid: currentUser.uid,
+        error: (error as Error).message,
+      });
+      return { existe: false };
     }
   }
 

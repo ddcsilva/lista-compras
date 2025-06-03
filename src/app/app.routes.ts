@@ -40,15 +40,6 @@ export const routes: Routes = [
     title: 'Minha Lista - Vai na Lista',
   },
 
-  // 🧪 NOVA: Rota temporária para teste de email (REMOVER após validação)
-  {
-    path: 'teste-email',
-    // canActivate: [authGuard], // TEMPORARIAMENTE REMOVIDO PARA TESTE
-    loadComponent: () =>
-      import('./features/compartilhamento/teste-email/teste-email.component').then(m => m.TesteEmailComponent),
-    title: 'Teste de Email - Vai na Lista',
-  },
-
   // Rota de fallback - página não encontrada
   {
     path: '**',
