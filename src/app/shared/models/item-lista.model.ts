@@ -1,3 +1,5 @@
+import { ConvitePendente, MembroLista } from './compartilhamento.model';
+
 /**
  * Interface que define a estrutura de um item dentro da lista de compras
  * Agora os itens são armazenados como array dentro do documento da lista
@@ -28,6 +30,9 @@ export interface Lista {
   compartilhadaCom?: string[]; // Array de UIDs para compartilhamento (futuro)
   ativa: boolean; // Se a lista está ativa ou arquivada
   cor?: string; // Cor da lista para personalização
+  tipoLista?: 'individual' | 'compartilhada';
+  membros?: MembroLista[];
+  convitesPendentes?: ConvitePendente[];
 }
 
 /**

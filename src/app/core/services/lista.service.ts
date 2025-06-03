@@ -1,5 +1,6 @@
-import { Injectable, OnDestroy } from '@angular/core';
+import { Injectable, OnDestroy, inject } from '@angular/core';
 import {
+  Firestore,
   collection,
   doc,
   getDoc,
@@ -12,8 +13,7 @@ import {
   Timestamp,
   runTransaction,
   arrayUnion,
-} from 'firebase/firestore';
-import { db } from '../config/firebase.config';
+} from '@angular/fire/firestore';
 import { AuthService } from './auth.service';
 import { LoggingService } from './logging.service';
 import { ToastService } from './toast.service';
@@ -52,6 +52,9 @@ import {
 })
 export class ListaService implements OnDestroy {
   private readonly COLLECTION_LISTAS = 'listas';
+
+  // Injeção de dependência do Firestore
+  private firestore = inject(Firestore);
 
   // Observables para estado reativo
   private listaAtualSubject = new BehaviorSubject<Lista | null>(null);
@@ -136,7 +139,7 @@ export class ListaService implements OnDestroy {
     try {
       // Query simplificada para evitar necessidade de índice composto
       const listasQuery = query(
-        collection(db, this.COLLECTION_LISTAS),
+        collection(this.firestore, this.COLLECTION_LISTAS),
         where('criadoPor', '==', usuarioId),
         where('ativa', '==', true)
       );
@@ -194,7 +197,7 @@ export class ListaService implements OnDestroy {
     }
 
     try {
-      const listaRef = doc(db, this.COLLECTION_LISTAS, listaId);
+      const listaRef = doc(this.firestore, this.COLLECTION_LISTAS, listaId);
 
       this.unsubscribeLista = onSnapshot(
         listaRef,
@@ -269,7 +272,7 @@ export class ListaService implements OnDestroy {
         compartilhadaCom: [],
       };
 
-      const listaRef = doc(collection(db, this.COLLECTION_LISTAS));
+      const listaRef = doc(collection(this.firestore, this.COLLECTION_LISTAS));
       await setDoc(listaRef, {
         ...lista,
         dataCriacao: Timestamp.fromDate(lista.dataCriacao),
@@ -322,7 +325,7 @@ export class ListaService implements OnDestroy {
     }
 
     try {
-      const listaRef = doc(db, this.COLLECTION_LISTAS, listaId);
+      const listaRef = doc(this.firestore, this.COLLECTION_LISTAS, listaId);
       const docSnapshot = await getDoc(listaRef);
 
       if (docSnapshot.exists()) {
@@ -393,8 +396,8 @@ export class ListaService implements OnDestroy {
       };
 
       // Usa transação para garantir atomicidade
-      await runTransaction(db, async transaction => {
-        const listaRef = doc(db, this.COLLECTION_LISTAS, listaAtual.id!);
+      await runTransaction(this.firestore, async transaction => {
+        const listaRef = doc(this.firestore, this.COLLECTION_LISTAS, listaAtual.id!);
         const listaSnapshot = await transaction.get(listaRef);
 
         if (!listaSnapshot.exists()) {
@@ -441,8 +444,8 @@ export class ListaService implements OnDestroy {
 
     try {
       // Usa transação para atualizar o item no array
-      await runTransaction(db, async transaction => {
-        const listaRef = doc(db, this.COLLECTION_LISTAS, listaAtual.id!);
+      await runTransaction(this.firestore, async transaction => {
+        const listaRef = doc(this.firestore, this.COLLECTION_LISTAS, listaAtual.id!);
         const listaSnapshot = await transaction.get(listaRef);
 
         if (!listaSnapshot.exists()) {
@@ -510,8 +513,8 @@ export class ListaService implements OnDestroy {
       }
 
       // Usa transação para remover o item
-      await runTransaction(db, async transaction => {
-        const listaRef = doc(db, this.COLLECTION_LISTAS, listaAtual.id!);
+      await runTransaction(this.firestore, async transaction => {
+        const listaRef = doc(this.firestore, this.COLLECTION_LISTAS, listaAtual.id!);
         const listaSnapshot = await transaction.get(listaRef);
 
         if (!listaSnapshot.exists()) {
@@ -564,8 +567,8 @@ export class ListaService implements OnDestroy {
 
     try {
       // Usa transação para remover todos os itens concluídos
-      await runTransaction(db, async transaction => {
-        const listaRef = doc(db, this.COLLECTION_LISTAS, listaAtual.id!);
+      await runTransaction(this.firestore, async transaction => {
+        const listaRef = doc(this.firestore, this.COLLECTION_LISTAS, listaAtual.id!);
         const listaSnapshot = await transaction.get(listaRef);
 
         if (!listaSnapshot.exists()) {
@@ -605,7 +608,7 @@ export class ListaService implements OnDestroy {
     }
 
     try {
-      const listaRef = doc(db, this.COLLECTION_LISTAS, listaId);
+      const listaRef = doc(this.firestore, this.COLLECTION_LISTAS, listaId);
       await updateDoc(listaRef, {
         ativa: false,
         dataAtualizacao: Timestamp.fromDate(new Date()),
@@ -633,7 +636,7 @@ export class ListaService implements OnDestroy {
     }
 
     try {
-      const listaRef = doc(db, this.COLLECTION_LISTAS, listaId);
+      const listaRef = doc(this.firestore, this.COLLECTION_LISTAS, listaId);
       await deleteDoc(listaRef);
 
       // Se era a lista atual, limpa a seleção

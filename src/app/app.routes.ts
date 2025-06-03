@@ -36,7 +36,7 @@ export const routes: Routes = [
   {
     path: 'lista',
     canActivate: [authGuard],
-    loadComponent: () => import('./features/lista/lista/lista.component').then(m => m.ListaComponent),
+    loadComponent: () => import('./features/listas/lista/lista.component').then(m => m.ListaComponent),
     title: 'Minha Lista - Vai na Lista',
   },
 

@@ -11,48 +11,87 @@ export const authGuard: CanActivateFn = () => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  // Verifica se o usuário está autenticado usando o computed signal
-  if (authService.isAutenticado()) {
-    return true;
-  }
+  console.log('🛡️ authGuard executado:', {
+    isCarregando: authService.isCarregando(),
+    isAutenticado: authService.isAutenticado(),
+    usuario: authService.usuario(),
+    currentRoute: router.url,
+  });
 
-  // Redireciona para login se não autenticado
-  router.navigate(['/login']);
-  return false;
-};
-
-/**
- * Guard que protege rotas públicas (como login e cadastro)
- * Redireciona para lista se usuário já estiver autenticado
- */
-export const publicGuard: CanActivateFn = async (route, state) => {
-  const authService = inject(AuthService);
-  const router = inject(Router);
-  const loggingService = inject(LoggingService);
-
-  // Aguarda o Firebase terminar de carregar
+  // Se ainda está carregando, aguarda
   if (authService.isCarregando()) {
-    loggingService.debug('PublicGuard: Waiting for Firebase to load...');
+    console.log('⏳ Auth ainda carregando, aguardando...');
 
-    // Aguarda até que não esteja mais carregando
-    await new Promise<void>(resolve => {
-      const checkLoading = () => {
-        if (!authService.isCarregando()) {
-          resolve();
+    return new Promise(resolve => {
+      setTimeout(() => {
+        console.log('🔄 Recheck após delay de carregamento:', {
+          isCarregando: authService.isCarregando(),
+          isAutenticado: authService.isAutenticado(),
+        });
+
+        if (authService.isAutenticado()) {
+          console.log('✅ Usuário autenticado após delay de carregamento');
+          resolve(true);
         } else {
-          setTimeout(checkLoading, 100);
+          console.log('❌ Usuário não autenticado após carregamento, redirecionando para login');
+          router.navigate(['/login']);
+          resolve(false);
         }
-      };
-      checkLoading();
+      }, 100);
     });
   }
 
-  const isAuthenticated = authService.isAutenticado();
-
-  if (!isAuthenticated) {
+  // Se já autenticado, permite
+  if (authService.isAutenticado()) {
+    console.log('✅ Usuário autenticado, permitindo acesso');
     return true;
-  } else {
+  }
+
+  // Se não autenticado, aguarda um pouco mais para casos de login em andamento
+  console.log('⏳ Usuário não autenticado, aguardando possível login em andamento...');
+
+  return new Promise(resolve => {
+    let tentativas = 0;
+    const maxTentativas = 30; // 3 segundos (30 x 100ms)
+
+    const checkAuth = () => {
+      tentativas++;
+
+      if (authService.isAutenticado()) {
+        console.log('✅ Usuário autenticado durante aguardo, permitindo acesso');
+        resolve(true);
+        return;
+      }
+
+      if (tentativas >= maxTentativas) {
+        console.log('❌ Timeout aguardando autenticação, redirecionando para login');
+        router.navigate(['/login']);
+        resolve(false);
+        return;
+      }
+
+      setTimeout(checkAuth, 100);
+    };
+
+    checkAuth();
+  });
+};
+
+/**
+ * Guard para rotas públicas (login, cadastro)
+ * Redireciona usuários autenticados para a lista
+ */
+export const publicGuard: CanActivateFn = () => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+
+  const usuario = authService.usuario();
+
+  if (usuario) {
+    // Usuário já está logado, redireciona para lista
     router.navigate(['/lista']);
     return false;
   }
+
+  return true;
 };

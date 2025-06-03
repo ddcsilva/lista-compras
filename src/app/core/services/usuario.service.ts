@@ -1,6 +1,5 @@
-import { Injectable, signal } from '@angular/core';
-import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
-import { db } from '../config/firebase.config';
+import { Injectable, signal, inject } from '@angular/core';
+import { Firestore, collection, query, where, getDocs, limit, doc, getDoc } from '@angular/fire/firestore';
 import { LoggingService } from './logging.service';
 import { ToastService } from './toast.service';
 import { UsuarioBasico, ResultadoBuscaUsuario, ValidacaoEmail } from '../../shared/models/usuario.model';
@@ -16,6 +15,9 @@ import { UsuarioBasico, ResultadoBuscaUsuario, ValidacaoEmail } from '../../shar
 export class UsuarioService {
   private readonly COLLECTION_USUARIOS = 'usuarios';
   private readonly CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutos
+
+  // Injeção de dependência do Firestore
+  private firestore = inject(Firestore);
 
   // Cache simples para usuários buscados recentemente
   private cacheUsuarios = new Map<string, { usuario: UsuarioBasico; timestamp: number }>();
@@ -64,7 +66,11 @@ export class UsuarioService {
       }
 
       // Busca no Firestore por email
-      const usuariosQuery = query(collection(db, this.COLLECTION_USUARIOS), where('email', '==', emailLimpo), limit(1));
+      const usuariosQuery = query(
+        collection(this.firestore, this.COLLECTION_USUARIOS),
+        where('email', '==', emailLimpo),
+        limit(1)
+      );
 
       const querySnapshot = await getDocs(usuariosQuery);
 
@@ -133,7 +139,7 @@ export class UsuarioService {
     try {
       const promises = uids.map(async uid => {
         try {
-          const docRef = doc(db, this.COLLECTION_USUARIOS, uid);
+          const docRef = doc(this.firestore, this.COLLECTION_USUARIOS, uid);
           const docSnap = await getDoc(docRef);
 
           if (docSnap.exists()) {

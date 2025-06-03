@@ -8,6 +8,8 @@ import { ToastService } from '../../../core/services/toast.service';
 import { PwaService } from '../../../core/services/pwa.service';
 import { Lista, ItemLista, NovoItemLista, EdicaoItemLista } from '../../../shared/models/item-lista.model';
 import { Subscription } from 'rxjs';
+import { CompartilharListaModalComponent } from '../components/compartilhar-lista-modal/compartilhar-lista-modal.component';
+import { ConvitesPendentesComponent } from '../components/convites-pendentes/convites-pendentes.component';
 
 /**
  * Componente standalone para gerenciar listas de compras
@@ -18,7 +20,7 @@ import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-lista',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, CompartilharListaModalComponent, ConvitesPendentesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './lista.component.html',
 })
@@ -38,6 +40,7 @@ export class ListaComponent implements OnDestroy {
   isOnline = signal(navigator.onLine);
   mostrarSeletorListas = signal(false);
   mostrarMenuPWA = signal(false);
+  mostrarModalCompartilhar = signal(false);
 
   // PWA Signals
   isInstallable = signal(false);
@@ -447,6 +450,13 @@ export class ListaComponent implements OnDestroy {
    */
   alternarSeletorListas(): void {
     this.mostrarSeletorListas.update(valor => !valor);
+  }
+
+  /**
+   * Abre o modal de compartilhamento da lista
+   */
+  compartilharLista(): void {
+    this.mostrarModalCompartilhar.set(true);
   }
 
   /**

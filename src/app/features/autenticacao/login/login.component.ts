@@ -1,10 +1,9 @@
 import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { LoggingService } from '../../../core/services/logging.service';
-import { ToastService } from '../../../core/services/toast.service';
 
 /**
  * Componente standalone para tela de login
