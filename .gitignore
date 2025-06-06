@@ -42,5 +42,40 @@ testem.log
 Thumbs.db
 
 # Environment files (Firebase config)
-/src/environments/environment.ts
-/src/environments/environment.prod.ts
+# Commented out to allow build in CI/CD
+# /src/environments/environment.ts
+# /src/environments/environment.prod.ts
+
+# Firebase
+firebase-debug.log
+firebase-debug.*.log
+.firebase/
+
+# Build artifacts
+*.tgz
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Package manager lockfiles (keep package-lock.json)
+yarn.lock
+pnpm-lock.yaml
+
+# Local development
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

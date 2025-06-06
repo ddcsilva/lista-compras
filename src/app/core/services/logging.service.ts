@@ -17,6 +17,28 @@ export interface LogEntry {
   sessionId?: string;
 }
 
+export type LogExtra = Record<string, any>;
+
+/**
+ * Configuração de níveis de log
+ * Reduzi drasticamente para desenvolvimento mais limpo
+ */
+const LOG_CONFIG = {
+  // Só mostra logs críticos em desenvolvimento
+  enableConsoleLogging: false, // DESABILITADO para desenvolvimento limpo
+  enableLocalStorage: false,
+  enableRemoteLogging: false,
+  maxEntries: 100,
+
+  // Só permite logs de nível ERROR ou superior
+  logLevels: {
+    ERROR: true,
+    WARN: false,
+    INFO: false,
+    DEBUG: false,
+  },
+};
+
 /**
  * Serviço centralizado de logging
  * Fornece interface unificada para logs da aplicação
@@ -37,33 +59,39 @@ export class LoggingService {
   }
 
   /**
-   * Log de debug - apenas em desenvolvimento
+   * Log de erro (sempre exibido)
    */
-  debug(message: string, data?: any, source?: string): void {
-    if (!this.isProduction) {
-      this.log(LogLevel.DEBUG, message, data, source);
-    }
+  error(message: string, extra?: LogExtra): void {
+    if (!LOG_CONFIG.logLevels.ERROR) return;
+
+    this.log('ERROR', message, extra);
   }
 
   /**
-   * Log informativo
+   * Log de aviso (desabilitado por padrão)
    */
-  info(message: string, data?: any, source?: string): void {
-    this.log(LogLevel.INFO, message, data, source);
+  warn(message: string, extra?: LogExtra): void {
+    if (!LOG_CONFIG.logLevels.WARN) return;
+
+    this.log('WARN', message, extra);
   }
 
   /**
-   * Log de aviso
+   * Log informativo (desabilitado por padrão)
    */
-  warn(message: string, data?: any, source?: string): void {
-    this.log(LogLevel.WARN, message, data, source);
+  info(message: string, extra?: LogExtra): void {
+    if (!LOG_CONFIG.logLevels.INFO) return;
+
+    this.log('INFO', message, extra);
   }
 
   /**
-   * Log de erro - sempre registrado
+   * Log de debug (desabilitado por padrão)
    */
-  error(message: string, data?: any, source?: string): void {
-    this.log(LogLevel.ERROR, message, data, source);
+  debug(message: string, extra?: LogExtra): void {
+    if (!LOG_CONFIG.logLevels.DEBUG) return;
+
+    this.log('DEBUG', message, extra);
   }
 
   /**
@@ -80,7 +108,7 @@ export class LoggingService {
       userAgent: navigator.userAgent,
     };
 
-    this.error(`Unhandled Error: ${error.message}`, logData, context);
+    this.error(`Unhandled Error: ${error.message}`, logData);
   }
 
   /**
@@ -96,7 +124,7 @@ export class LoggingService {
       timestamp: new Date().toISOString(),
     };
 
-    this.error(`HTTP Error ${status}: ${statusText}`, logData, 'HttpInterceptor');
+    this.error(`HTTP Error ${status}: ${statusText}`, logData);
   }
 
   /**
@@ -154,88 +182,18 @@ export class LoggingService {
   }
 
   /**
-   * Método interno para registrar logs
+   * Método principal de logging (simplificado)
    */
-  private log(level: LogLevel, message: string, data?: any, source?: string): void {
-    const logEntry: LogEntry = {
-      timestamp: new Date(),
-      level,
-      message,
-      data,
-      source,
-      sessionId: this.sessionId,
-    };
+  private log(level: string, message: string, extra?: LogExtra): void {
+    if (!LOG_CONFIG.enableConsoleLogging) return;
 
-    // Console output com cores baseadas no nível
-    this.outputToConsole(logEntry);
+    const timestamp = new Date().toISOString();
+    const logMessage = `${timestamp}  ${message}`;
 
-    // Armazenamento local para desenvolvimento/debug
-    this.storeLog(logEntry);
-
-    // TODO: Enviar para serviço externo em produção
-    if (this.isProduction && level >= LogLevel.ERROR) {
-      this.sendToExternalService(logEntry);
+    // Console output mínimo
+    if (level === 'ERROR') {
+      console.error(logMessage, extra || '');
     }
-  }
-
-  /**
-   * Output formatado para console
-   */
-  private outputToConsole(logEntry: LogEntry): void {
-    const { timestamp, level, message, data, source } = logEntry;
-    const timeStr = timestamp.toISOString();
-    const sourceStr = source ? `[${source}]` : '';
-    const fullMessage = `${timeStr} ${sourceStr} ${message}`;
-
-    switch (level) {
-      case LogLevel.DEBUG:
-        console.debug(fullMessage, data);
-        break;
-      case LogLevel.INFO:
-        console.info(fullMessage, data);
-        break;
-      case LogLevel.WARN:
-        console.warn(fullMessage, data);
-        break;
-      case LogLevel.ERROR:
-        console.error(fullMessage, data);
-        break;
-    }
-  }
-
-  /**
-   * Armazena log localmente
-   */
-  private storeLog(logEntry: LogEntry): void {
-    try {
-      const logs = this.getLogs();
-      logs.push(logEntry);
-
-      // Mantém apenas os últimos N logs
-      while (logs.length > this.MAX_LOGS_STORED) {
-        logs.shift();
-      }
-
-      localStorage.setItem(this.LOG_STORAGE_KEY, JSON.stringify(logs));
-    } catch (error) {
-      console.error('Erro ao armazenar log:', error);
-    }
-  }
-
-  /**
-   * Placeholder para integração futura com serviços externos
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private sendToExternalService(logEntry: LogEntry): void {
-    // TODO: Implementar integração com Sentry, Firebase, etc.
-    // Exemplo:
-    // if (window.Sentry) {
-    //   window.Sentry.addBreadcrumb({
-    //     message: logEntry.message,
-    //     level: this.mapLogLevelToSentry(logEntry.level),
-    //     data: logEntry.data
-    //   });
-    // }
   }
 
   /**

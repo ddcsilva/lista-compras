@@ -78,13 +78,13 @@ jobs:
         run: npm run build:prod
 
       - name: List build output
-        run: ls -la dist/vai-na-lista/
+        run: ls -la dist/vai-na-lista/browser/
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist-files
-          path: dist/vai-na-lista/
+          path: dist/vai-na-lista/browser/
           retention-days: 1
 
   # ==========================================
@@ -104,7 +104,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dist-files
-          path: dist/vai-na-lista/
+          path: dist/vai-na-lista/browser/
 
       - name: Deploy to Preview Channel
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -134,7 +134,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dist-files
-          path: dist/vai-na-lista/
+          path: dist/vai-na-lista/browser/
 
       - name: Deploy to Production
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -151,12 +151,12 @@ jobs:
           echo "🎉 Vai na Lista deployed successfully!"
           echo "🌐 Production URL: https://vai-na-lista-f9551.web.app"
           echo "⏰ Build completed at: $(date)"
-          echo "📦 Build size: $(du -sh dist/vai-na-lista/ | cut -f1)"
+          echo "📦 Build size: $(du -sh dist/vai-na-lista/browser/ | cut -f1)"
 
       - name: Comment PR with deploy info
         if: github.event_name == 'push'
         run: |
           echo "✅ **Deploy realizado com sucesso!**" >> $GITHUB_STEP_SUMMARY
           echo "🌐 **URL de Produção:** https://vai-na-lista-f9551.web.app" >> $GITHUB_STEP_SUMMARY
-          echo "📊 **Tamanho do Build:** $(du -sh dist/vai-na-lista/ | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Tamanho do Build:** $(du -sh dist/vai-na-lista/browser/ | cut -f1)" >> $GITHUB_STEP_SUMMARY
           echo "⏰ **Horário:** $(date)" >> $GITHUB_STEP_SUMMARY

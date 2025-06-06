@@ -6,6 +6,7 @@ import { authGuard, publicGuard } from './core/guards/auth.guard';
  * Implementa lazy loading para otimização de performance
  * Guards de autenticação para proteger rotas
  * Preloading automático para navegação instantânea
+ * ADICIONADA: Rota temporária para teste de email (Pacote 1)
  */
 export const routes: Routes = [
   // Rota raiz - redireciona baseado no estado de autenticação
@@ -35,7 +36,7 @@ export const routes: Routes = [
   {
     path: 'lista',
     canActivate: [authGuard],
-    loadComponent: () => import('./features/lista/lista/lista.component').then(m => m.ListaComponent),
+    loadComponent: () => import('./features/listas/lista/lista.component').then(m => m.ListaComponent),
     title: 'Minha Lista - Vai na Lista',
   },
 
@@ -45,3 +46,19 @@ export const routes: Routes = [
     redirectTo: '/lista',
   },
 ];
+
+/*
+INSTRUÇÕES PARA TESTE:
+
+1. Acesse: http://localhost:4200/teste-email
+2. AGORA NÃO PRECISA fazer login (authGuard temporariamente removido)
+3. A rota deve carregar diretamente sem redirecionamento
+4. Digite emails de usuários existentes no Firebase Auth
+5. Observe a validação em tempo real
+6. Verifique os logs no console do navegador
+7. Teste o cache digitando emails repetidos
+
+IMPORTANTE:
+- REATIVAR o authGuard antes do deploy
+- REMOVER ESTA ROTA após confirmar que funciona!
+*/

@@ -1,10 +1,9 @@
 import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { LoggingService } from '../../../core/services/logging.service';
-import { ToastService } from '../../../core/services/toast.service';
 
 /**
  * Componente standalone para tela de login
@@ -21,7 +20,7 @@ import { ToastService } from '../../../core/services/toast.service';
   templateUrl: './login.component.html',
 })
 export class LoginComponent {
-  loginForm: FormGroup;
+  loginForm!: FormGroup;
 
   // Signals para gerenciar estado do componente
   isCarregando = signal(false);
@@ -32,32 +31,28 @@ export class LoginComponent {
   constructor(
     private formBuilder: FormBuilder,
     private authService: AuthService,
-    private router: Router,
-    private loggingService: LoggingService,
-    private toastService: ToastService
-  ) {
-    this.loginForm = this.criarFormulario();
-    this.loggingService.info('LoginComponent initialized');
+    private loggingService: LoggingService
+  ) {}
+
+  ngOnInit(): void {
+    this.criarFormulario();
   }
 
   /**
    * Cria o formulário de login com validações
    */
-  private criarFormulario(): FormGroup {
-    return this.formBuilder.group({
-      email: ['', [Validators.required, Validators.email, Validators.maxLength(100)]],
-      senha: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(50)]],
+  private criarFormulario(): void {
+    this.loginForm = this.formBuilder.group({
+      email: ['', [Validators.required, Validators.email]],
+      senha: ['', [Validators.required, Validators.minLength(6)]],
     });
   }
 
   /**
    * Alterna a visibilidade da senha
    */
-  alternarVisibilidadeSenha(): void {
+  togglePasswordVisibility(): void {
     this.mostrarSenha.update(valor => !valor);
-    this.loggingService.debug('Password visibility toggled', {
-      visible: this.mostrarSenha(),
-    });
   }
 
   /**
@@ -118,43 +113,20 @@ export class LoginComponent {
   async onSubmit(): Promise<void> {
     if (this.loginForm.invalid) {
       this.marcarCamposComoTocados();
-      this.loggingService.warn('Login form submitted with validation errors');
       return;
     }
 
     this.isCarregando.set(true);
-    this.erroLogin.set(null);
 
     try {
       const { email, senha } = this.loginForm.value;
-
-      this.loggingService.info('Email login form submitted', {
-        email: email,
-        formValid: this.loginForm.valid,
-      });
-
       const sucesso = await this.authService.loginEmailSenha({ email, senha });
 
       if (!sucesso) {
-        this.erroLogin.set('Falha na autenticação. Verifique suas credenciais.');
-        this.loggingService.warn('Email login failed in component', {
-          email: email,
-          reason: 'authentication_failed',
-        });
+        // Erro já tratado pelo AuthService
       }
     } catch (error) {
-      const errorMessage = 'Ocorreu um erro inesperado. Tente novamente.';
-      this.erroLogin.set(errorMessage);
-
-      this.loggingService.logError(error as Error, 'LoginComponent', {
-        action: 'email_login_submission',
-        formData: {
-          email: this.loginForm.value.email,
-          hasPassword: !!this.loginForm.value.senha,
-        },
-      });
-
-      this.toastService.error('Erro inesperado durante o login. Tente novamente.', 'Erro do Sistema');
+      this.loggingService.error('Unexpected login error', { error });
     } finally {
       this.isCarregando.set(false);
     }
@@ -167,21 +139,15 @@ export class LoginComponent {
     this.isCarregandoGoogle.set(true);
 
     try {
-      this.loggingService.info('Google login initiated from component');
-
       const sucesso = await this.authService.loginGoogle();
 
       if (!sucesso) {
-        this.loggingService.warn('Google login failed in component');
+        // Erro já tratado pelo AuthService
       }
     } catch (error) {
-      this.loggingService.logError(error as Error, 'LoginComponent', {
-        action: 'google_login',
-      });
-
-      this.toastService.error('Erro no login com Google. Tente novamente.', 'Erro do Sistema');
+      this.loggingService.error('Unexpected Google login error', { error });
     } finally {
-      this.isCarregandoGoogle.set(false);
+      this.isCarregando.set(false);
     }
   }
 

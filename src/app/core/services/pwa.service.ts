@@ -39,15 +39,20 @@ export class PwaService {
    * Inicializa funcionalidades PWA
    */
   private initializePWA(): void {
-    if (!this.swUpdate.isEnabled) {
-      this.loggingService.warn('Service Worker not enabled');
-      return;
-    }
+    try {
+      if (!this.swUpdate.isEnabled) {
+        return;
+      }
 
-    this.setupUpdateChecks();
-    this.setupInstallPrompt();
-    this.checkIfInstalled();
-    this.setupVersionUpdates();
+      this.setupUpdateChecks();
+      this.setupInstallPrompt();
+      this.checkIfInstalled();
+      this.setupVersionUpdates();
+    } catch (error) {
+      this.loggingService.error('Erro ao inicializar PWA', {
+        error: (error as Error).message,
+      });
+    }
   }
 
   /**
